@@ -1,0 +1,2110 @@
+import React, { useState, useEffect, useRef } from "react";
+import {
+  Pill,
+  Dumbbell,
+  CheckSquare,
+  Droplet,
+  Film,
+  Plus,
+  Check,
+  Trash2,
+  X,
+  ChevronLeft,
+  ChevronRight,
+  Shuffle,
+  Clock,
+  Flower2,
+  Star,
+  Flame,
+  Pencil,
+  BookOpen,
+  Heart,
+  Wind,
+  CloudRain,
+  Shield,
+  Moon,
+  HelpCircle,
+  BatteryLow,
+  Sun,
+  Gift,
+  Share2,
+  ChevronDown,
+  Youtube,
+} from "lucide-react";
+
+/* ---------- HELPERS ---------- */
+const dateKey = (d) => {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+};
+const todayKey = () => dateKey(new Date());
+const dateFromKey = (key) => {
+  const [y, m, d] = key.split("-").map(Number);
+  return new Date(y, m - 1, d);
+};
+const uid = () => Math.random().toString(36).slice(2, 10);
+const dayOfYear = (d) => {
+  const start = new Date(d.getFullYear(), 0, 0);
+  return Math.floor((d - start) / 86400000);
+};
+const formatTime = (s) => {
+  const m = Math.floor(s / 60);
+  const sec = s % 60;
+  return `${String(m).padStart(2, "0")}:${String(sec).padStart(2, "0")}`;
+};
+
+const HYDRATION_GOAL_ML = 2000; // recommandation moyenne EFSA pour une femme de 18 ans
+const GLASS_ML = 250;
+const HYDRATION_GOAL_GLASSES = HYDRATION_GOAL_ML / GLASS_ML;
+const HYDRATION_MAX_GLASSES = 12;
+
+const EMPTY = {
+  tasks: [],
+  pillCycleAnchor: null,
+  pillTaken: {},
+  hydration: {},
+  sessionHistory: {},
+  favoriteSessions: [],
+  favoriteVerses: [],
+  verseReadDates: [],
+};
+
+/* ---------- STORAGE HOOK ---------- */
+function useHubData() {
+  const [data, setData] = useState(EMPTY);
+  const [loaded, setLoaded] = useState(false);
+  const saveTimer = useRef(null);
+
+  useEffect(() => {
+    (async () => {
+      let initial = null;
+      try {
+        const res = await window.storage.get("hub-data");
+        if (res && res.value) initial = JSON.parse(res.value);
+      } catch (e) {
+        // pas de données existantes
+      }
+      const CORRECT_ANCHOR = dateKey(new Date(2026, 7, 13)); // plaquette commencée le 13 août 2026
+      if (!initial) {
+        initial = {
+          ...EMPTY,
+          pillCycleAnchor: CORRECT_ANCHOR,
+          pillTaken: {},
+        };
+      } else if (initial.pillCycleAnchor !== CORRECT_ANCHOR) {
+        // corrige une ancienne date d'ancrage stockée précédemment
+        initial = { ...initial, pillCycleAnchor: CORRECT_ANCHOR };
+      }
+      try {
+        await window.storage.set("hub-data", JSON.stringify(initial));
+      } catch (e) {}
+      setData({ ...EMPTY, ...initial });
+      setLoaded(true);
+    })();
+  }, []);
+
+  const persist = (next) => {
+    setData(next);
+    if (saveTimer.current) clearTimeout(saveTimer.current);
+    saveTimer.current = setTimeout(async () => {
+      try {
+        await window.storage.set("hub-data", JSON.stringify(next));
+      } catch (e) {
+        console.error("Erreur de sauvegarde", e);
+      }
+    }, 250);
+  };
+
+  return { data, persist, loaded };
+}
+
+/* ---------- PALETTE ---------- */
+const ROSE = "#C98A96";
+const ROSE_DARK = "#8F5361";
+const ROSE_LIGHT = "#F7E7EA";
+const SAGE = "#8FA57D";
+const SAGE_LIGHT = "#EAF0E3";
+const CORAL = "#C97A6D";
+const CORAL_LIGHT = "#F6E5E1";
+const CREAM = "#FBF3EF";
+const CARD = "#FFFFFF";
+const TEXT = "#463639";
+const TEXT_MUTED = "#A78F92";
+const BORDER = "#F0DFE1";
+
+/* ---------- SHARED UI ---------- */
+function Header({ title, subtitle }) {
+  return (
+    <div style={{ padding: "clamp(20px,6vw,28px) clamp(16px,5vw,22px) 14px" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <Flower2 size={15} color={ROSE} strokeWidth={1.5} />
+        <span
+          style={{
+            fontSize: 11.5,
+            letterSpacing: "0.12em",
+            textTransform: "uppercase",
+            color: TEXT_MUTED,
+            fontWeight: 500,
+          }}
+        >
+          {subtitle}
+        </span>
+      </div>
+      <h1
+        style={{
+          fontFamily: "Georgia, 'Palatino Linotype', serif",
+          fontStyle: "italic",
+          fontWeight: 400,
+          fontSize: "clamp(24px,6vw,30px)",
+          color: TEXT,
+          margin: "4px 0 0",
+        }}
+      >
+        {title}
+      </h1>
+    </div>
+  );
+}
+
+function Card({ children, style, onClick }) {
+  return (
+    <div
+      onClick={onClick}
+      style={{
+        background: CARD,
+        border: `1px solid ${BORDER}`,
+        borderRadius: 18,
+        padding: "16px 18px",
+        marginBottom: 12,
+        boxShadow: "0 2px 10px rgba(140,90,100,0.05)",
+        ...style,
+      }}
+    >
+      {children}
+    </div>
+  );
+}
+
+function IconButton({ onClick, children, danger }) {
+  return (
+    <button
+      onClick={onClick}
+      style={{
+        border: "none",
+        background: "transparent",
+        color: danger ? "#B85C5C" : TEXT_MUTED,
+        cursor: "pointer",
+        padding: 6,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        flexShrink: 0,
+      }}
+    >
+      {children}
+    </button>
+  );
+}
+
+function PrimaryButton({ onClick, children, style, color }) {
+  return (
+    <button
+      onClick={onClick}
+      style={{
+        background: color || ROSE,
+        color: "#fff",
+        border: "none",
+        borderRadius: 999,
+        padding: "12px 20px",
+        fontSize: 14,
+        fontWeight: 500,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: 6,
+        cursor: "pointer",
+        boxShadow: `0 3px 10px ${color || ROSE}55`,
+        ...style,
+      }}
+    >
+      {children}
+    </button>
+  );
+}
+
+function TextField(props) {
+  return (
+    <input
+      {...props}
+      style={{
+        border: `1px solid ${BORDER}`,
+        borderRadius: 12,
+        padding: "10px 12px",
+        fontSize: 14,
+        color: TEXT,
+        outline: "none",
+        width: "100%",
+        boxSizing: "border-box",
+        background: CREAM,
+        ...(props.style || {}),
+      }}
+    />
+  );
+}
+
+/* ================= PILULES ================= */
+function getDayInfo(key, anchorKey) {
+  const diff = Math.round((dateFromKey(key) - dateFromKey(anchorKey)) / 86400000);
+  const mod = ((diff % 28) + 28) % 28;
+  if (mod < 21) return { type: "pill", dayInPack: mod + 1 };
+  return { type: "break", dayInBreak: mod - 21 + 1 };
+}
+
+function PillsScreen({ data, persist }) {
+  const [monthOffset, setMonthOffset] = useState(0);
+  const anchor = data.pillCycleAnchor || todayKey();
+  const today = todayKey();
+  const todayInfo = getDayInfo(today, anchor);
+  const nowHour = new Date().getHours();
+  const showLateBanner = todayInfo.type === "pill" && !data.pillTaken[today] && nowHour >= 22;
+
+  const toggleTaken = (key) => {
+    persist({ ...data, pillTaken: { ...data.pillTaken, [key]: !data.pillTaken[key] } });
+  };
+
+  const base = new Date();
+  base.setDate(1);
+  base.setMonth(base.getMonth() + monthOffset);
+  const year = base.getFullYear();
+  const month = base.getMonth();
+  const firstOfMonth = new Date(year, month, 1);
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const leading = (firstOfMonth.getDay() + 6) % 7; // lundi = 0
+
+  const cells = [];
+  for (let i = 0; i < leading; i++) cells.push(null);
+  for (let d = 1; d <= daysInMonth; d++) cells.push(d);
+
+  const monthLabel = base.toLocaleDateString("fr-FR", { month: "long", year: "numeric" });
+
+  let remainingMsg = "";
+  if (todayInfo.type === "pill") {
+    const totalFromToday = 21 - todayInfo.dayInPack + 1;
+    const remaining = totalFromToday - (data.pillTaken[today] ? 1 : 0);
+    remainingMsg =
+      remaining > 0
+        ? `Il te reste ${remaining} pilule${remaining > 1 ? "s" : ""} à prendre avant la pause.`
+        : "Dernière pilule de la plaquette aujourd'hui, prise !";
+  } else {
+    const daysLeftInBreak = 7 - todayInfo.dayInBreak + 1;
+    remainingMsg = `Semaine sans pilule — reprise dans ${daysLeftInBreak} jour${daysLeftInBreak > 1 ? "s" : ""}.`;
+  }
+
+  return (
+    <div>
+      <Header title="Pilules" subtitle="Safe Place" />
+      <div style={{ padding: "0 clamp(16px,5vw,22px)" }}>
+        <Card style={{ background: todayInfo.type === "pill" ? ROSE_LIGHT : SAGE_LIGHT, border: "none" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10 }}>
+            <div>
+              <div style={{ fontSize: 13, color: todayInfo.type === "pill" ? ROSE_DARK : "#5C7449", fontWeight: 500 }}>
+                {todayInfo.type === "pill" ? `Jour ${todayInfo.dayInPack} / 21` : `Pause — jour ${todayInfo.dayInBreak} / 7`}
+              </div>
+              <div style={{ fontSize: 14, color: TEXT, marginTop: 4 }}>{remainingMsg}</div>
+            </div>
+            {todayInfo.type === "pill" && (
+              <button
+                onClick={() => toggleTaken(today)}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 8,
+                  border: "none",
+                  borderRadius: 999,
+                  padding: data.pillTaken[today] ? "10px 16px" : "10px 18px",
+                  background: data.pillTaken[today] ? ROSE : "#fff",
+                  color: data.pillTaken[today] ? "#fff" : ROSE_DARK,
+                  boxShadow: data.pillTaken[today] ? "0 3px 10px rgba(140,90,100,0.25)" : `0 0 0 2px ${ROSE}`,
+                  fontSize: 13.5,
+                  fontWeight: 600,
+                  cursor: "pointer",
+                  flexShrink: 0,
+                  whiteSpace: "nowrap",
+                }}
+              >
+                <span
+                  style={{
+                    width: 22,
+                    height: 22,
+                    borderRadius: "50%",
+                    border: data.pillTaken[today] ? "none" : `2px solid ${ROSE}`,
+                    background: data.pillTaken[today] ? "rgba(255,255,255,0.25)" : "transparent",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    flexShrink: 0,
+                  }}
+                >
+                  {data.pillTaken[today] && <Check size={14} />}
+                </span>
+                {data.pillTaken[today] ? "Prise aujourd'hui" : "Valider ma pilule"}
+              </button>
+            )}
+          </div>
+        </Card>
+
+        {showLateBanner && (
+          <Card style={{ background: CORAL_LIGHT, border: "none", display: "flex", alignItems: "center", gap: 10 }}>
+            <span style={{ fontSize: 18 }}>⏰</span>
+            <span style={{ fontSize: 13, color: "#7A4A3D", fontWeight: 500 }}>
+              Il est plus de 22h, n'oublie pas ta pilule ce soir !
+            </span>
+          </Card>
+        )}
+
+        <Card>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+            <IconButton onClick={() => setMonthOffset((m) => m - 1)}>
+              <ChevronLeft size={18} />
+            </IconButton>
+            <span style={{ fontSize: 14, fontWeight: 500, color: TEXT, textTransform: "capitalize" }}>{monthLabel}</span>
+            <IconButton onClick={() => setMonthOffset((m) => m + 1)}>
+              <ChevronRight size={18} />
+            </IconButton>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(7,1fr)", gap: 4, marginBottom: 6 }}>
+            {["L", "M", "M", "J", "V", "S", "D"].map((d, i) => (
+              <div key={i} style={{ textAlign: "center", fontSize: 10, color: TEXT_MUTED }}>
+                {d}
+              </div>
+            ))}
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(7,1fr)", gap: 4 }}>
+            {cells.map((d, i) => {
+              if (!d) return <div key={i} />;
+              const key = dateKey(new Date(year, month, d));
+              const info = getDayInfo(key, anchor);
+              const isToday = key === today;
+              const taken = !!data.pillTaken[key];
+              return (
+                <button
+                  key={i}
+                  onClick={() => info.type === "pill" && toggleTaken(key)}
+                  style={{
+                    aspectRatio: "1",
+                    borderRadius: 10,
+                    border: isToday ? `1.5px solid ${ROSE_DARK}` : "1px solid transparent",
+                    background: info.type === "pill" ? (taken ? ROSE : ROSE_LIGHT) : SAGE_LIGHT,
+                    color: info.type === "pill" ? (taken ? "#fff" : ROSE_DARK) : "#5C7449",
+                    fontSize: 11,
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    cursor: info.type === "pill" ? "pointer" : "default",
+                  }}
+                >
+                  {d}
+                </button>
+              );
+            })}
+          </div>
+          <div style={{ display: "flex", gap: 14, marginTop: 14, fontSize: 11, color: TEXT_MUTED }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+              <span style={{ width: 10, height: 10, borderRadius: 3, background: ROSE, display: "inline-block" }} />
+              pilule prise
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+              <span style={{ width: 10, height: 10, borderRadius: 3, background: ROSE_LIGHT, display: "inline-block" }} />
+              à prendre
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+              <span style={{ width: 10, height: 10, borderRadius: 3, background: SAGE_LIGHT, display: "inline-block" }} />
+              pause
+            </div>
+          </div>
+        </Card>
+        <div style={{ height: 90 }} />
+      </div>
+    </div>
+  );
+}
+
+/* ================= PILATES ================= */
+const PILATES_SESSIONS = [
+  {
+    id: "b1",
+    level: "debutant",
+    title: "Pilates douceur — Réveil du corps",
+    focus: "Respiration, mobilité, gainage léger",
+    minutes: 20,
+    query: "pilates débutant doux réveil du corps 20 minutes en français",
+  },
+  {
+    id: "b2",
+    level: "debutant",
+    title: "Pilates matinal — Tonus doux",
+    focus: "Réveil musculaire en douceur",
+    minutes: 20,
+    query: "pilates débutant matinal tonus 20 minutes en français",
+  },
+  {
+    id: "i1",
+    level: "intermediaire",
+    title: "Pilates Core — Renforcement profond",
+    focus: "Abdominaux profonds et gainage",
+    minutes: 30,
+    query: "pilates ventre plat abdominaux intermédiaire 30 minutes en français",
+  },
+  {
+    id: "i2",
+    level: "intermediaire",
+    title: "Pilates jambes & fessiers",
+    focus: "Tonification du bas du corps",
+    minutes: 30,
+    query: "pilates fessiers jambes intermédiaire 30 minutes en français",
+  },
+  {
+    id: "i3",
+    level: "intermediaire",
+    title: "Stabilité & équilibre",
+    focus: "Contrôle, gainage et équilibre",
+    minutes: 30,
+    query: "pilates gainage équilibre intermédiaire en français",
+  },
+  {
+    id: "i4",
+    level: "intermediaire",
+    title: "Pilates dynamique — Cardio doux",
+    focus: "Rythme soutenu, cardio léger",
+    minutes: 30,
+    query: "pilates cardio fitness intermédiaire en français",
+  },
+  {
+    id: "i5",
+    level: "intermediaire",
+    title: "Dos & posture",
+    focus: "Renforcement du dos, mobilité de la colonne",
+    minutes: 30,
+    query: "pilates dos posture renforcement intermédiaire en français",
+  },
+  {
+    id: "d1",
+    level: "difficile",
+    title: "Pilates avancé — Contrôle total",
+    focus: "Force, précision, contrôle",
+    minutes: 40,
+    query: "pilates avancé difficile complet 40 minutes en français",
+  },
+  {
+    id: "d2",
+    level: "difficile",
+    title: "Power Pilates",
+    focus: "Intensité et puissance musculaire",
+    minutes: 40,
+    query: "power pilates intense fitness avancé en français",
+  },
+  {
+    id: "d3",
+    level: "difficile",
+    title: "Pilates athlétique",
+    focus: "Séance complète haut niveau",
+    minutes: 45,
+    query: "pilates athlétique sportif niveau avancé en français",
+  },
+];
+
+const LEVEL_LABELS = {
+  debutant: { label: "Débutante", color: SAGE, bg: SAGE_LIGHT },
+  intermediaire: { label: "Intermédiaire", color: ROSE_DARK, bg: ROSE_LIGHT },
+  difficile: { label: "Difficile", color: CORAL, bg: CORAL_LIGHT },
+};
+
+// Lien de recherche YouTube (plutôt qu'une vidéo précise) : garantit un résultat réel et à jour, en français
+const ytSearchUrl = (query) =>
+  `https://www.youtube.com/results?search_query=${encodeURIComponent(query)}&hl=fr&gl=FR`;
+
+function SessionDetail({ session, onBack, data, persist, isFav, onToggleFav }) {
+  const level = LEVEL_LABELS[session.level];
+  const timesDone = (data.sessionHistory[session.id] || []).length;
+
+  const markDone = () => {
+    const hist = data.sessionHistory[session.id] || [];
+    persist({
+      ...data,
+      sessionHistory: { ...data.sessionHistory, [session.id]: [...hist, todayKey()] },
+    });
+  };
+
+  return (
+    <div>
+      <div style={{ padding: "18px clamp(16px,5vw,22px) 6px", display: "flex", alignItems: "center", gap: 10 }}>
+        <IconButton onClick={onBack}>
+          <ChevronLeft size={20} />
+        </IconButton>
+        <span style={{ fontSize: 13, fontWeight: 500, color: TEXT_MUTED }}>Aperçu de la séance</span>
+      </div>
+      <div style={{ padding: "10px clamp(16px,5vw,22px) 0" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+          <span
+            style={{
+              display: "inline-block",
+              fontSize: 11,
+              fontWeight: 600,
+              color: level.color,
+              background: level.bg,
+              borderRadius: 999,
+              padding: "3px 10px",
+              marginBottom: 8,
+            }}
+          >
+            {level.label}
+          </span>
+          <button onClick={onToggleFav} style={{ border: "none", background: "transparent", cursor: "pointer", padding: 2 }}>
+            <Star size={20} color={isFav ? "#E0B84A" : BORDER} fill={isFav ? "#E0B84A" : "none"} />
+          </button>
+        </div>
+        <h2 style={{ fontFamily: "Georgia, serif", fontStyle: "italic", fontSize: 22, color: TEXT, margin: "0 0 6px" }}>
+          {session.title}
+        </h2>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 12 }}>
+          {session.focus.split(/,\s*/).map((f, i) => (
+            <span
+              key={i}
+              style={{ fontSize: 11.5, color: ROSE_DARK, background: ROSE_LIGHT, borderRadius: 999, padding: "3px 10px" }}
+            >
+              {f}
+            </span>
+          ))}
+        </div>
+        <div style={{ display: "flex", gap: 14, marginBottom: 20, alignItems: "center" }}>
+          <span style={{ fontSize: 12.5, color: TEXT_MUTED, display: "flex", alignItems: "center", gap: 4 }}>
+            <Clock size={13} /> environ {session.minutes} min
+          </span>
+          {timesDone > 0 && <span style={{ fontSize: 12.5, color: SAGE }}>réalisée {timesDone}x</span>}
+        </div>
+
+        <a
+          href={ytSearchUrl(session.query)}
+          target="_blank"
+          rel="noopener noreferrer"
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: 8,
+            width: "100%",
+            boxSizing: "border-box",
+            background: ROSE,
+            color: "#fff",
+            borderRadius: 999,
+            padding: "14px 20px",
+            fontSize: 15,
+            fontWeight: 600,
+            textDecoration: "none",
+            boxShadow: `0 4px 14px ${ROSE}55`,
+            marginBottom: 10,
+          }}
+        >
+          <Youtube size={19} /> Regarder sur YouTube
+        </a>
+        <p style={{ fontSize: 11.5, color: TEXT_MUTED, textAlign: "center", marginBottom: 22 }}>
+          Ouvre une recherche YouTube pour cette séance (résultats réels, en français)
+        </p>
+
+        <button
+          onClick={markDone}
+          style={{
+            width: "100%",
+            boxSizing: "border-box",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: 8,
+            border: `1.5px solid ${SAGE}`,
+            background: SAGE_LIGHT,
+            color: "#5C7449",
+            borderRadius: 999,
+            padding: "13px 20px",
+            fontSize: 14.5,
+            fontWeight: 600,
+            cursor: "pointer",
+            marginBottom: 90,
+          }}
+        >
+          <Check size={16} /> Marquer comme faite aujourd'hui
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function PilatesScreen({ data, persist }) {
+  const [preview, setPreview] = useState(null);
+
+  const toggleFavorite = (id, e) => {
+    if (e) e.stopPropagation();
+    const favs = data.favoriteSessions || [];
+    persist({
+      ...data,
+      favoriteSessions: favs.includes(id) ? favs.filter((f) => f !== id) : [...favs, id],
+    });
+  };
+
+  const favoriteIds = data.favoriteSessions || [];
+
+  if (preview) {
+    return (
+      <SessionDetail
+        session={preview}
+        onBack={() => setPreview(null)}
+        data={data}
+        persist={persist}
+        isFav={favoriteIds.includes(preview.id)}
+        onToggleFav={() => toggleFavorite(preview.id)}
+      />
+    );
+  }
+
+  // stats
+  const allDates = Object.values(data.sessionHistory || {}).flat();
+  const weekAgo = new Date();
+  weekAgo.setDate(weekAgo.getDate() - 6);
+  const sessionsThisWeek = allDates.filter((d) => dateFromKey(d) >= new Date(weekAgo.toDateString())).length;
+  const totalMinutes = Object.entries(data.sessionHistory || {}).reduce((sum, [id, dates]) => {
+    const s = PILATES_SESSIONS.find((x) => x.id === id);
+    return sum + (s ? s.minutes * dates.length : 0);
+  }, 0);
+  let streak = 0;
+  {
+    const uniqueDays = new Set(allDates);
+    let d = new Date();
+    while (uniqueDays.has(dateKey(d))) {
+      streak++;
+      d.setDate(d.getDate() - 1);
+    }
+  }
+
+  const favoriteSessions = PILATES_SESSIONS.filter((s) => favoriteIds.includes(s.id));
+
+  const SessionCard = ({ s }) => {
+    const level = LEVEL_LABELS[s.level];
+    const timesDone = (data.sessionHistory[s.id] || []).length;
+    const isFav = favoriteIds.includes(s.id);
+    return (
+      <Card onClick={() => setPreview(s)} style={{ cursor: "pointer" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 15, fontWeight: 500, color: TEXT }}>{s.title}</div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 5, marginTop: 6 }}>
+              {s.focus.split(/,\s*/).map((f, i) => (
+                <span
+                  key={i}
+                  style={{ fontSize: 10.5, color: level.color, background: level.bg, borderRadius: 999, padding: "2px 8px" }}
+                >
+                  {f}
+                </span>
+              ))}
+            </div>
+            <div style={{ display: "flex", gap: 10, marginTop: 8, alignItems: "center" }}>
+              <span style={{ fontSize: 11.5, color: TEXT_MUTED, display: "flex", alignItems: "center", gap: 3 }}>
+                <Clock size={12} /> {s.minutes} min
+              </span>
+              {timesDone > 0 && <span style={{ fontSize: 11.5, color: SAGE }}>réalisée {timesDone}x</span>}
+            </div>
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6, flexShrink: 0 }}>
+            <button
+              onClick={(e) => toggleFavorite(s.id, e)}
+              style={{ border: "none", background: "transparent", cursor: "pointer", padding: 2 }}
+            >
+              <Star size={16} color={isFav ? "#E0B84A" : BORDER} fill={isFav ? "#E0B84A" : "none"} />
+            </button>
+          </div>
+        </div>
+      </Card>
+    );
+  };
+
+  return (
+    <div>
+      <Header title="Pilates" subtitle="Safe Place" />
+      <div style={{ padding: "0 clamp(16px,5vw,22px)" }}>
+        <Card style={{ background: ROSE_LIGHT, border: "none", display: "flex", justifyContent: "space-around", textAlign: "center" }}>
+          <div>
+            <div style={{ fontSize: 20, fontWeight: 600, color: ROSE_DARK, display: "flex", alignItems: "center", gap: 4, justifyContent: "center" }}>
+              {streak > 0 && <Flame size={16} color="#D08A3E" />}
+              {streak}
+            </div>
+            <div style={{ fontSize: 10.5, color: TEXT_MUTED, marginTop: 2 }}>jours de suite</div>
+          </div>
+          <div>
+            <div style={{ fontSize: 20, fontWeight: 600, color: ROSE_DARK }}>{sessionsThisWeek}</div>
+            <div style={{ fontSize: 10.5, color: TEXT_MUTED, marginTop: 2 }}>séances / 7j</div>
+          </div>
+          <div>
+            <div style={{ fontSize: 20, fontWeight: 600, color: ROSE_DARK }}>{totalMinutes}</div>
+            <div style={{ fontSize: 10.5, color: TEXT_MUTED, marginTop: 2 }}>min au total</div>
+          </div>
+        </Card>
+
+        {favoriteSessions.length > 0 && (
+          <div style={{ marginBottom: 8 }}>
+            <div style={{ fontSize: 12, fontWeight: 500, color: "#B8923C", marginBottom: 8, marginTop: 4, display: "flex", alignItems: "center", gap: 4 }}>
+              <Star size={12} fill="#E0B84A" color="#E0B84A" /> Mes favoris
+            </div>
+            {favoriteSessions.map((s) => (
+              <SessionCard key={s.id} s={s} />
+            ))}
+          </div>
+        )}
+
+        {["debutant", "intermediaire", "difficile"].map((level) => (
+          <div key={level} style={{ marginBottom: 8 }}>
+            <div style={{ fontSize: 12, fontWeight: 500, color: LEVEL_LABELS[level].color, marginBottom: 8, marginTop: 8 }}>
+              {LEVEL_LABELS[level].label}
+            </div>
+            {PILATES_SESSIONS.filter((s) => s.level === level).map((s) => (
+              <SessionCard key={s.id} s={s} />
+            ))}
+          </div>
+        ))}
+        <div style={{ height: 80 }} />
+      </div>
+    </div>
+  );
+}
+
+/* ================= TÂCHES ================= */
+const TASK_CATEGORIES = [
+  { key: "perso", label: "Perso", color: ROSE_DARK, bg: ROSE_LIGHT },
+  { key: "maison", label: "Maison", color: SAGE, bg: SAGE_LIGHT },
+  { key: "sport", label: "Sport", color: CORAL, bg: CORAL_LIGHT },
+  { key: "autre", label: "Autre", color: "#8A7BB0", bg: "#EAE5F3" },
+];
+const catInfo = (key) => TASK_CATEGORIES.find((c) => c.key === key) || TASK_CATEGORIES[3];
+
+function TasksScreen({ data, persist }) {
+  const [text, setText] = useState("");
+  const [category, setCategory] = useState("perso");
+  const [filter, setFilter] = useState("all");
+  const [editingId, setEditingId] = useState(null);
+  const [editText, setEditText] = useState("");
+
+  const addTask = () => {
+    if (!text.trim()) return;
+    persist({
+      ...data,
+      tasks: [{ id: uid(), text: text.trim(), done: false, createdAt: Date.now(), category }, ...data.tasks],
+    });
+    setText("");
+  };
+
+  const toggleDone = (id) => {
+    persist({ ...data, tasks: data.tasks.map((t) => (t.id === id ? { ...t, done: !t.done } : t)) });
+  };
+
+  const removeTask = (id) => {
+    persist({ ...data, tasks: data.tasks.filter((t) => t.id !== id) });
+  };
+
+  const startEdit = (t) => {
+    setEditingId(t.id);
+    setEditText(t.text);
+  };
+
+  const saveEdit = () => {
+    if (editText.trim()) {
+      persist({ ...data, tasks: data.tasks.map((t) => (t.id === editingId ? { ...t, text: editText.trim() } : t)) });
+    }
+    setEditingId(null);
+  };
+
+  const clearDone = () => {
+    persist({ ...data, tasks: data.tasks.filter((t) => !t.done) });
+  };
+
+  const filtered = data.tasks.filter((t) => filter === "all" || (t.category || "autre") === filter);
+  const sorted = [...filtered].sort((a, b) => a.done - b.done || b.createdAt - a.createdAt);
+  const doneCount = data.tasks.filter((t) => t.done).length;
+  const totalCount = data.tasks.length;
+  const progress = totalCount > 0 ? (doneCount / totalCount) * 100 : 0;
+
+  return (
+    <div>
+      <Header title="Tâches" subtitle="Safe Place" />
+      <div style={{ padding: "0 clamp(16px,5vw,22px)" }}>
+        <Card>
+          <TextField
+            placeholder="Ajouter une tâche..."
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && addTask()}
+            style={{ marginBottom: 10 }}
+          />
+          <div style={{ display: "flex", gap: 6, marginBottom: 10, flexWrap: "wrap" }}>
+            {TASK_CATEGORIES.map((c) => (
+              <button
+                key={c.key}
+                onClick={() => setCategory(c.key)}
+                style={{
+                  border: category === c.key ? `1.5px solid ${c.color}` : `1px solid ${BORDER}`,
+                  background: category === c.key ? c.bg : "transparent",
+                  color: category === c.key ? c.color : TEXT_MUTED,
+                  borderRadius: 999,
+                  padding: "5px 12px",
+                  fontSize: 11.5,
+                  fontWeight: 500,
+                  cursor: "pointer",
+                }}
+              >
+                {c.label}
+              </button>
+            ))}
+          </div>
+          <PrimaryButton onClick={addTask} style={{ width: "100%", justifyContent: "center" }}>
+            <Plus size={16} /> Ajouter
+          </PrimaryButton>
+        </Card>
+
+        {totalCount > 0 && (
+          <Card>
+            <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
+              <span style={{ fontSize: 12.5, color: TEXT_MUTED }}>
+                {doneCount} / {totalCount} terminées
+              </span>
+              {doneCount > 0 && (
+                <button
+                  onClick={clearDone}
+                  style={{ border: "none", background: "transparent", color: TEXT_MUTED, fontSize: 11.5, cursor: "pointer", textDecoration: "underline" }}
+                >
+                  Effacer terminées
+                </button>
+              )}
+            </div>
+            <div style={{ height: 6, background: BORDER, borderRadius: 999, overflow: "hidden" }}>
+              <div style={{ height: "100%", width: `${progress}%`, background: SAGE, transition: "width 0.3s" }} />
+            </div>
+          </Card>
+        )}
+
+        <div style={{ display: "flex", gap: 6, marginBottom: 12, flexWrap: "wrap" }}>
+          <button
+            onClick={() => setFilter("all")}
+            style={{
+              border: `1px solid ${filter === "all" ? TEXT_MUTED : BORDER}`,
+              background: filter === "all" ? CREAM : "transparent",
+              color: filter === "all" ? TEXT : TEXT_MUTED,
+              borderRadius: 999,
+              padding: "5px 12px",
+              fontSize: 11.5,
+              fontWeight: 500,
+              cursor: "pointer",
+            }}
+          >
+            Tout
+          </button>
+          {TASK_CATEGORIES.map((c) => (
+            <button
+              key={c.key}
+              onClick={() => setFilter(c.key)}
+              style={{
+                border: `1px solid ${filter === c.key ? c.color : BORDER}`,
+                background: filter === c.key ? c.bg : "transparent",
+                color: filter === c.key ? c.color : TEXT_MUTED,
+                borderRadius: 999,
+                padding: "5px 12px",
+                fontSize: 11.5,
+                fontWeight: 500,
+                cursor: "pointer",
+              }}
+            >
+              {c.label}
+            </button>
+          ))}
+        </div>
+
+        {sorted.length === 0 && (
+          <p style={{ color: TEXT_MUTED, fontSize: 14, textAlign: "center", marginTop: 24 }}>Aucune tâche ici.</p>
+        )}
+
+        {sorted.map((t) => {
+          const cat = catInfo(t.category);
+          const isEditing = editingId === t.id;
+          return (
+            <Card key={t.id} style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
+              <button
+                onClick={() => toggleDone(t.id)}
+                style={{
+                  width: 24,
+                  height: 24,
+                  borderRadius: "50%",
+                  border: `1.5px solid ${t.done ? SAGE : BORDER}`,
+                  background: t.done ? SAGE : "transparent",
+                  color: "#fff",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  cursor: "pointer",
+                  flexShrink: 0,
+                }}
+              >
+                {t.done && <Check size={14} />}
+              </button>
+              <span style={{ width: 7, height: 7, borderRadius: "50%", background: cat.color, flexShrink: 0 }} />
+              {isEditing ? (
+                <input
+                  autoFocus
+                  value={editText}
+                  onChange={(e) => setEditText(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && saveEdit()}
+                  onBlur={saveEdit}
+                  style={{
+                    flex: 1,
+                    border: `1px solid ${BORDER}`,
+                    borderRadius: 8,
+                    padding: "4px 8px",
+                    fontSize: 14,
+                    color: TEXT,
+                    background: CREAM,
+                    outline: "none",
+                  }}
+                />
+              ) : (
+                <span
+                  onClick={() => !t.done && startEdit(t)}
+                  style={{
+                    flex: 1,
+                    fontSize: 14,
+                    color: TEXT,
+                    textDecoration: t.done ? "line-through" : "none",
+                    opacity: t.done ? 0.5 : 1,
+                    cursor: t.done ? "default" : "text",
+                  }}
+                >
+                  {t.text}
+                </span>
+              )}
+              {!isEditing && !t.done && (
+                <IconButton onClick={() => startEdit(t)}>
+                  <Pencil size={14} />
+                </IconButton>
+              )}
+              <IconButton onClick={() => removeTask(t.id)} danger>
+                <X size={16} />
+              </IconButton>
+            </Card>
+          );
+        })}
+        <div style={{ height: 80 }} />
+      </div>
+    </div>
+  );
+}
+
+/* ================= HYDRATATION ================= */
+function HydrationScreen({ data, persist }) {
+  const today = todayKey();
+  const count = data.hydration[today] || 0;
+
+  const setCount = (v) => {
+    persist({ ...data, hydration: { ...data.hydration, [today]: Math.max(0, Math.min(HYDRATION_MAX_GLASSES, v)) } });
+  };
+
+  const last7 = Array.from({ length: 7 }, (_, i) => {
+    const d = new Date();
+    d.setDate(d.getDate() - (6 - i));
+    const key = dateKey(d);
+    return { label: d.toLocaleDateString("fr-FR", { weekday: "short" }).slice(0, 2), value: data.hydration[key] || 0 };
+  });
+
+  return (
+    <div>
+      <Header title="Hydratation" subtitle="Safe Place" />
+      <div style={{ padding: "0 clamp(16px,5vw,22px)" }}>
+        <Card style={{ textAlign: "center", padding: "28px 18px" }}>
+          <div style={{ fontSize: 42, fontWeight: 500, color: SAGE }}>
+            {count}
+            <span style={{ fontSize: 18, color: TEXT_MUTED }}> / {HYDRATION_GOAL_GLASSES}</span>
+          </div>
+          <div style={{ fontSize: 12, color: TEXT_MUTED, marginTop: 2, marginBottom: 18 }}>
+            verres aujourd'hui ({(count * GLASS_ML) / 1000} L)
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(8, 1fr)", gap: 6, marginBottom: 20 }}>
+            {Array.from({ length: HYDRATION_MAX_GLASSES }, (_, i) => (
+              <Droplet key={i} size={20} color={i < count ? SAGE : BORDER} fill={i < count ? SAGE : "none"} strokeWidth={1.5} />
+            ))}
+          </div>
+          <div style={{ display: "flex", justifyContent: "center", gap: 12 }}>
+            <button
+              onClick={() => setCount(count - 1)}
+              style={{
+                width: 44,
+                height: 44,
+                borderRadius: "50%",
+                border: `1.5px solid ${BORDER}`,
+                background: "transparent",
+                fontSize: 18,
+                color: TEXT_MUTED,
+                cursor: "pointer",
+              }}
+            >
+              −
+            </button>
+            <button
+              onClick={() => setCount(count + 1)}
+              style={{
+                width: 44,
+                height: 44,
+                borderRadius: "50%",
+                border: "none",
+                background: SAGE,
+                fontSize: 18,
+                color: "#fff",
+                cursor: "pointer",
+              }}
+            >
+              +
+            </button>
+          </div>
+        </Card>
+
+        <Card>
+          <div style={{ fontSize: 13, fontWeight: 500, color: TEXT, marginBottom: 12 }}>7 derniers jours</div>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", height: 80 }}>
+            {last7.map((d, i) => (
+              <div key={i} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
+                <div
+                  style={{
+                    width: 16,
+                    height: Math.max(4, (d.value / HYDRATION_GOAL_GLASSES) * 56),
+                    background: SAGE_LIGHT,
+                    borderTop: `3px solid ${SAGE}`,
+                    borderRadius: "4px 4px 0 0",
+                  }}
+                />
+                <span style={{ fontSize: 10, color: TEXT_MUTED, textTransform: "capitalize" }}>{d.label}</span>
+              </div>
+            ))}
+          </div>
+        </Card>
+        <div style={{ height: 80 }} />
+      </div>
+    </div>
+  );
+}
+
+/* ================= FILM ================= */
+const FILM_CATEGORIES = [
+  {
+    key: "marvel",
+    label: "Marvel",
+    color: CORAL,
+    bg: CORAL_LIGHT,
+    titles: [
+      "Iron Man", "Iron Man 2", "Iron Man 3", "The Avengers", "Avengers: Age of Ultron",
+      "Avengers: Infinity War", "Avengers: Endgame", "Les Gardiens de la Galaxie",
+      "Les Gardiens de la Galaxie Vol. 2", "Les Gardiens de la Galaxie Vol. 3", "Black Panther",
+      "Black Panther: Wakanda Forever", "Thor", "Thor: Ragnarok", "Thor: Love and Thunder",
+      "Spider-Man: Homecoming", "Spider-Man: No Way Home", "Captain America: Winter Soldier",
+      "Captain America: Civil War", "Doctor Strange", "Doctor Strange in the Multiverse of Madness",
+      "Ant-Man", "Ant-Man and the Wasp", "Shang-Chi", "Captain Marvel", "Eternals", "Black Widow",
+    ],
+  },
+  {
+    key: "disney",
+    label: "Disney",
+    color: ROSE_DARK,
+    bg: ROSE_LIGHT,
+    titles: [
+      "La Reine des Neiges", "La Reine des Neiges 2", "Le Roi Lion", "Vaiana", "Vaiana 2",
+      "Raiponce", "Encanto", "Aladdin", "La Belle et la Bête", "Coco", "Zootopie", "Luca",
+      "Soul", "Wish", "Blanche-Neige", "Cendrillon", "La Petite Sirène", "Mulan", "Peter Pan",
+      "Le Livre de la Jungle", "Les Indestructibles", "Les Indestructibles 2", "Ratatouille",
+      "Là-Haut", "WALL-E", "Toy Story", "Toy Story 4", "Frère des Ours",
+    ],
+  },
+  {
+    key: "amour",
+    label: "Amour",
+    color: "#B85C7A",
+    bg: "#F7E4EC",
+    titles: [
+      "Titanic", "Notting Hill", "La La Land", "Orgueil et Préjugés", "Le Journal de Bridget Jones",
+      "À la folie pas du tout", "Love Actually", "The Notebook", "500 jours ensemble",
+      "Crazy Rich Asians", "Dirty Dancing", "Amélie Poulain", "Il reste encore demain",
+      "The Vow", "Me Before You", "A Star Is Born", "Anyone But You", "La Forme de l'eau",
+      "Portrait de la jeune fille en feu", "Twilight", "Cyrano de Bergerac", "Un jour",
+    ],
+  },
+  {
+    key: "comedie",
+    label: "Comédie",
+    color: "#C9A24A",
+    bg: "#F7EED9",
+    titles: [
+      "Very Bad Trip", "Bridesmaids", "Mean Girls", "OSS 117", "Qu'est-ce qu'on a fait au Bon Dieu",
+      "Le Sens de la fête", "Barbie", "21 Jump Street", "Superbad", "La Cité de la peur",
+      "Camping", "Intouchables", "Le Prénom", "Rien à déclarer", "Kaamelott, Premier Volet",
+      "Les Tuche", "Bienvenue chez les Ch'tis",
+    ],
+  },
+  {
+    key: "horreur",
+    label: "Horreur",
+    color: "#7A5C8F",
+    bg: "#EBE3F0",
+    titles: [
+      "Scream", "Insidious", "Conjuring", "Sixième Sens", "Hérédité", "Get Out", "A Quiet Place",
+      "It", "Halloween", "L'Exorciste", "Midsommar", "The Babadook", "Sinister", "Annabelle",
+      "Ça : Chapitre 2", "Talk to Me",
+    ],
+  },
+  {
+    key: "action",
+    label: "Action",
+    color: "#B04B4B",
+    bg: "#F5DEDE",
+    titles: [
+      "Mission Impossible", "John Wick", "Mad Max: Fury Road", "Fast & Furious", "Die Hard",
+      "Gladiator", "The Dark Knight", "Top Gun: Maverick", "Kill Bill", "Inception", "Skyfall",
+      "Edge of Tomorrow", "Mad Max", "Dune",
+    ],
+  },
+  {
+    key: "animation",
+    label: "Animation",
+    color: "#4E8E8E",
+    bg: "#DDEFEF",
+    titles: [
+      "Le Voyage de Chihiro", "Your Name", "Kung Fu Panda", "Comment Dresser Son Dragon", "Shrek",
+      "L'Île aux Chiens", "Vice-Versa", "Wallace et Gromit", "Les Mondes de Ralph", "Coraline",
+      "Ernest et Célestine", "Le Château Ambulant", "Spider-Man: Across the Spider-Verse",
+      "Klaus", "Le Tombeau des Lucioles",
+    ],
+  },
+  {
+    key: "serie",
+    label: "Série",
+    color: SAGE,
+    bg: SAGE_LIGHT,
+    titles: [
+      "Stranger Things", "Friends", "Emily in Paris", "The Crown", "Bridgerton", "Grey's Anatomy",
+      "Sex Education", "La Casa de Papel", "Outer Banks", "You", "Lupin", "Élite", "Dix pour cent",
+      "Breaking Bad", "The Office", "Peaky Blinders", "Wednesday", "Euphoria", "The Bear", "Ozark",
+    ],
+  },
+];
+
+function FilmScreen() {
+  const [active, setActive] = useState(null);
+  const [pick, setPick] = useState(null);
+  const [spinning, setSpinning] = useState(false);
+  const [infoCat, setInfoCat] = useState(null);
+  const spinRef = useRef(null);
+
+  const spinTo = (cat, avoid) => {
+    setActive(cat);
+    setSpinning(true);
+    let ticks = 0;
+    const maxTicks = 12;
+    spinRef.current = setInterval(() => {
+      const t = cat.titles[Math.floor(Math.random() * cat.titles.length)];
+      setPick(t);
+      ticks++;
+      if (ticks >= maxTicks) {
+        clearInterval(spinRef.current);
+        let final;
+        do {
+          final = cat.titles[Math.floor(Math.random() * cat.titles.length)];
+        } while (final === avoid && cat.titles.length > 1);
+        setPick(final);
+        setSpinning(false);
+      }
+    }, 70);
+  };
+
+  const choose = (cat) => spinTo(cat, null);
+  const reroll = () => active && spinTo(active, pick);
+
+  useEffect(() => () => spinRef.current && clearInterval(spinRef.current), []);
+
+  return (
+    <div>
+      <Header title="Film" subtitle="Safe Place" />
+      <div style={{ padding: "0 clamp(16px,5vw,22px)" }}>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 14 }}>
+          {FILM_CATEGORIES.map((cat) => (
+            <div
+              key={cat.key}
+              onClick={() => choose(cat)}
+              style={{
+                position: "relative",
+                border: active?.key === cat.key ? `2px solid ${cat.color}` : `1px solid ${BORDER}`,
+                background: cat.bg,
+                color: cat.color,
+                borderRadius: 16,
+                padding: "18px 34px 18px 10px",
+                fontSize: 14,
+                fontWeight: 500,
+                cursor: "pointer",
+                textAlign: "center",
+              }}
+            >
+              {cat.label}
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setInfoCat(infoCat?.key === cat.key ? null : cat);
+                }}
+                style={{
+                  position: "absolute",
+                  top: 8,
+                  right: 8,
+                  width: 22,
+                  height: 22,
+                  borderRadius: "50%",
+                  border: `1px solid ${cat.color}`,
+                  background: "rgba(255,255,255,0.6)",
+                  color: cat.color,
+                  fontSize: 11,
+                  fontWeight: 700,
+                  fontStyle: "italic",
+                  fontFamily: "Georgia, serif",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  cursor: "pointer",
+                  lineHeight: 1,
+                }}
+                aria-label={`Voir tous les films ${cat.label}`}
+              >
+                i
+              </button>
+            </div>
+          ))}
+        </div>
+
+        {infoCat && (
+          <Card style={{ background: infoCat.bg, border: "none" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+              <span style={{ fontSize: 12, textTransform: "uppercase", letterSpacing: "0.08em", color: infoCat.color, fontWeight: 600 }}>
+                Tous les titres — {infoCat.label}
+              </span>
+              <IconButton onClick={() => setInfoCat(null)}>
+                <X size={16} />
+              </IconButton>
+            </div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+              {infoCat.titles.map((t, i) => (
+                <span
+                  key={i}
+                  style={{
+                    fontSize: 12.5,
+                    color: TEXT,
+                    background: "rgba(255,255,255,0.7)",
+                    borderRadius: 999,
+                    padding: "5px 11px",
+                  }}
+                >
+                  {t}
+                </span>
+              ))}
+            </div>
+          </Card>
+        )}
+
+        {pick && (
+          <>
+            <style>{`
+              @keyframes filmPop { 0% { transform: scale(0.94); opacity: 0.6; } 100% { transform: scale(1); opacity: 1; } }
+              @keyframes filmSpin { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-3px); } }
+            `}</style>
+            <Card
+              style={{
+                textAlign: "center",
+                padding: "28px 18px",
+                background: active.bg,
+                border: "none",
+                animation: spinning ? "filmSpin 0.14s ease-in-out infinite" : "filmPop 0.3s ease-out",
+              }}
+            >
+              <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: "0.1em", color: active.color, marginBottom: 8 }}>
+                {spinning ? "Tirage en cours..." : active.label}
+              </div>
+              <div
+                style={{
+                  fontFamily: "Georgia, serif",
+                  fontStyle: "italic",
+                  fontSize: 24,
+                  color: TEXT,
+                  marginBottom: 18,
+                  opacity: spinning ? 0.55 : 1,
+                  transition: "opacity 0.1s",
+                }}
+              >
+                {pick}
+              </div>
+              <PrimaryButton
+                onClick={reroll}
+                color={active.color}
+                style={{ margin: "0 auto", opacity: spinning ? 0.6 : 1, pointerEvents: spinning ? "none" : "auto" }}
+              >
+                <Shuffle size={15} style={spinning ? { animation: "filmSpin 0.3s linear infinite" } : undefined} /> Autre suggestion
+              </PrimaryButton>
+            </Card>
+          </>
+        )}
+
+        {!pick && (
+          <p style={{ color: TEXT_MUTED, fontSize: 14, textAlign: "center", marginTop: 24 }}>
+            Choisis une catégorie pour une suggestion au hasard.
+          </p>
+        )}
+        <div style={{ height: 80 }} />
+      </div>
+    </div>
+  );
+}
+
+/* ================= NAV ================= */
+/* ================= RELIGION ================= */
+const EMOTION_VERSES = {
+  anxiete: {
+    label: "Anxiété",
+    verses: [
+      { ref: "Philippiens 4:6-7", text: "Ne vous inquiétez de rien; mais en toute chose faites connaître vos besoins à Dieu par des prières et des supplications, avec des actions de grâces. Et la paix de Dieu, qui surpasse toute intelligence, gardera vos cœurs et vos pensées en Jésus-Christ." },
+      { ref: "Matthieu 6:34", text: "Ne vous inquiétez donc pas du lendemain; car le lendemain aura soin de lui-même. À chaque jour suffit sa peine." },
+      { ref: "1 Pierre 5:7", text: "Déchargez-vous sur lui de tous vos soucis, car lui-même prend soin de vous." },
+    ],
+  },
+  tristesse: {
+    label: "Tristesse",
+    verses: [
+      { ref: "Psaume 34:19", text: "L'Éternel est près de ceux qui ont le cœur brisé, et il sauve ceux qui ont l'esprit dans l'abattement." },
+      { ref: "Psaume 30:6", text: "Car sa colère dure un instant, mais sa grâce toute la vie; le soir arrivent les pleurs, et le matin l'allégresse." },
+      { ref: "Matthieu 5:4", text: "Heureux ceux qui pleurent, car ils seront consolés!" },
+    ],
+  },
+  colere: {
+    label: "Colère",
+    verses: [
+      { ref: "Éphésiens 4:26", text: "Si vous vous mettez en colère, ne péchez point; que le soleil ne se couche pas sur votre colère." },
+      { ref: "Jacques 1:19-20", text: "Que tout homme soit prompt à écouter, lent à parler, lent à se mettre en colère; car la colère de l'homme n'accomplit pas la justice de Dieu." },
+      { ref: "Proverbes 15:1", text: "Une réponse douce calme la fureur, mais une parole dure excite la colère." },
+    ],
+  },
+  peur: {
+    label: "Peur",
+    verses: [
+      { ref: "Ésaïe 41:10", text: "Ne crains rien, car je suis avec toi; ne promène pas des regards inquiets, car je suis ton Dieu; je te fortifie, je viens à ton secours." },
+      { ref: "Psaume 23:4", text: "Quand je marche dans la vallée de l'ombre de la mort, je ne crains aucun mal, car tu es avec moi." },
+      { ref: "2 Timothée 1:7", text: "Car ce n'est pas un esprit de timidité que Dieu nous a donné, mais un esprit de force, d'amour et de sagesse." },
+    ],
+  },
+  solitude: {
+    label: "Solitude",
+    verses: [
+      { ref: "Deutéronome 31:6", text: "Fortifie-toi et prends courage... car l'Éternel, ton Dieu, marchera lui-même avec toi, il ne te délaissera point, il ne t'abandonnera point." },
+      { ref: "Psaume 68:6", text: "Dieu donne une demeure à ceux qui étaient abandonnés." },
+      { ref: "Matthieu 28:20", text: "Et voici, je suis avec vous tous les jours, jusqu'à la fin du monde." },
+    ],
+  },
+  doute: {
+    label: "Doute",
+    verses: [
+      { ref: "Jacques 1:5-6", text: "Si quelqu'un d'entre vous manque de sagesse, qu'il la demande à Dieu... mais qu'il la demande avec foi, sans douter." },
+      { ref: "Marc 9:24", text: "Je crois! viens au secours de mon incrédulité!" },
+      { ref: "Proverbes 3:5-6", text: "Confie-toi en l'Éternel de tout ton cœur, et ne t'appuie pas sur ta sagesse." },
+    ],
+  },
+  fatigue: {
+    label: "Fatigue",
+    verses: [
+      { ref: "Matthieu 11:28", text: "Venez à moi, vous tous qui êtes fatigués et chargés, et je vous donnerai du repos." },
+      { ref: "Ésaïe 40:31", text: "Ceux qui se confient en l'Éternel renouvellent leur force. Ils prennent le vol comme les aigles; ils courent, et ne se lassent point, ils marchent, et ne se fatiguent point." },
+      { ref: "Psaume 4:9", text: "Je me couche et je m'endors en paix, car toi seul, ô Éternel! tu me donnes la sécurité dans ma demeure." },
+    ],
+  },
+  joie: {
+    label: "Joie",
+    verses: [
+      { ref: "Néhémie 8:10", text: "Ne vous affligez pas, car la joie de l'Éternel sera votre force." },
+      { ref: "Philippiens 4:4", text: "Réjouissez-vous toujours dans le Seigneur; je le répète, réjouissez-vous." },
+      { ref: "Psaume 16:11", text: "Il y a des plaisirs à ta droite éternellement." },
+    ],
+  },
+  gratitude: {
+    label: "Gratitude",
+    verses: [
+      { ref: "1 Thessaloniciens 5:18", text: "Rendez grâces en toutes choses, car c'est à votre égard la volonté de Dieu en Jésus-Christ." },
+      { ref: "Psaume 107:1", text: "Louez l'Éternel, car il est bon, car sa miséricorde dure à toujours!" },
+      { ref: "Colossiens 3:15", text: "Que la paix de Christ règne dans vos cœurs, et soyez reconnaissants." },
+    ],
+  },
+  amour: {
+    label: "Amour",
+    verses: [
+      { ref: "1 Corinthiens 13:4", text: "L'amour est patient, il est plein de bonté; l'amour n'est point envieux." },
+      { ref: "1 Jean 4:19", text: "Pour nous, nous l'aimons, parce qu'il nous a aimés le premier." },
+      { ref: "Jean 15:12", text: "C'est ici mon commandement: Aimez-vous les uns les autres, comme je vous ai aimés." },
+    ],
+  },
+};
+
+const EMOTION_ICONS = {
+  anxiete: Wind,
+  tristesse: CloudRain,
+  colere: Flame,
+  peur: Shield,
+  solitude: Moon,
+  doute: HelpCircle,
+  fatigue: BatteryLow,
+  joie: Sun,
+  gratitude: Gift,
+  amour: Heart,
+};
+
+// Verset du jour : liste de versets bien établis, un par jour (répète après le nombre d'entrées si l'année dépasse la liste)
+const DAILY_VERSES = [
+  { ref: "Jean 3:16", text: "Car Dieu a tant aimé le monde qu'il a donné son Fils unique, afin que quiconque croit en lui ne périsse point, mais qu'il ait la vie éternelle." },
+  { ref: "Psaume 23:1", text: "L'Éternel est mon berger: je ne manquerai de rien." },
+  { ref: "Proverbes 3:5-6", text: "Confie-toi en l'Éternel de tout ton cœur, et ne t'appuie pas sur ta sagesse; reconnais-le dans toutes tes voies, et il aplanira tes sentiers." },
+  { ref: "Philippiens 4:13", text: "Je puis tout par celui qui me fortifie." },
+  { ref: "Romains 8:28", text: "Nous savons, du reste, que toutes choses concourent au bien de ceux qui aiment Dieu." },
+  { ref: "Ésaïe 40:31", text: "Ceux qui se confient en l'Éternel renouvellent leur force. Ils prennent le vol comme les aigles." },
+  { ref: "Matthieu 6:33", text: "Cherchez premièrement le royaume et la justice de Dieu; et toutes ces choses vous seront données par-dessus." },
+  { ref: "Psaume 46:1", text: "Dieu est pour nous un refuge et un appui, un secours toujours présent dans la détresse." },
+  { ref: "Jérémie 29:11", text: "Car je connais les projets que j'ai formés sur vous, dit l'Éternel, projets de paix et non de malheur, afin de vous donner un avenir et de l'espérance." },
+  { ref: "Josué 1:9", text: "Fortifie-toi et prends courage, ne t'effraie point et ne t'épouvante point, car l'Éternel, ton Dieu, est avec toi." },
+  { ref: "Psaume 27:1", text: "L'Éternel est ma lumière et mon salut: de qui aurais-je crainte?" },
+  { ref: "Galates 5:22-23", text: "Le fruit de l'Esprit, c'est l'amour, la joie, la paix, la patience, la bonté, la bénignité, la fidélité, la douceur, la tempérance." },
+  { ref: "Psaume 118:24", text: "C'est ici la journée que l'Éternel a faite: qu'elle soit pour nous un sujet d'allégresse et de joie!" },
+  { ref: "Proverbes 31:25", text: "Elle est revêtue de force et de dignité, et elle rit de l'avenir." },
+  { ref: "Romains 12:2", text: "Ne vous conformez pas au siècle présent, mais soyez transformés par le renouvellement de l'intelligence." },
+  { ref: "Colossiens 3:23", text: "Tout ce que vous faites, faites-le de bon cœur, comme pour le Seigneur et non pour des hommes." },
+  { ref: "Psaume 139:14", text: "Je te loue de ce que je suis une créature si merveilleuse. Tes œuvres sont admirables, et mon âme le reconnaît bien." },
+  { ref: "Éphésiens 2:8-9", text: "Car c'est par la grâce que vous êtes sauvés, par le moyen de la foi, cela ne vient pas de vous, c'est le don de Dieu." },
+  { ref: "1 Corinthiens 13:13", text: "Maintenant donc ces trois choses demeurent: la foi, l'espérance, la charité; mais la plus grande de ces choses, c'est la charité." },
+  { ref: "Psaume 121:1-2", text: "Je lève les yeux vers les montagnes... D'où me viendra le secours? Le secours me vient de l'Éternel, qui a fait les cieux et la terre." },
+  { ref: "Matthieu 11:28", text: "Venez à moi, vous tous qui êtes fatigués et chargés, et je vous donnerai du repos." },
+  { ref: "2 Corinthiens 5:17", text: "Si quelqu'un est en Christ, il est une nouvelle créature. Les choses vieilles sont passées; voici, toutes choses sont devenues nouvelles." },
+  { ref: "Psaume 34:8", text: "Sentez et voyez combien l'Éternel est bon! Heureux l'homme qui cherche en lui son refuge!" },
+  { ref: "Proverbes 16:3", text: "Recommande à l'Éternel tes œuvres, et tes projets réussiront." },
+  { ref: "Psaume 91:1-2", text: "Celui qui demeure sous l'abri du Très-Haut repose à l'ombre du Tout-Puissant." },
+  { ref: "Hébreux 11:1", text: "Or la foi est une ferme assurance des choses qu'on espère, une démonstration de celles qu'on ne voit pas." },
+  { ref: "1 Jean 4:18", text: "La crainte n'est pas dans l'amour, mais l'amour parfait bannit la crainte." },
+  { ref: "Psaume 37:4", text: "Fais de l'Éternel tes délices, et il te donnera ce que ton cœur désire." },
+  { ref: "Deutéronome 31:6", text: "Fortifie-toi et prends courage... car l'Éternel, ton Dieu, marchera lui-même avec toi." },
+  { ref: "Éphésiens 4:32", text: "Soyez bons les uns envers les autres, compatissants, vous pardonnant réciproquement, comme Dieu vous a pardonné en Christ." },
+  { ref: "Psaume 16:11", text: "Tu me fais connaître le sentier de la vie; il y a d'abondantes joies devant ta face." },
+  { ref: "Nombres 6:24-26", text: "Que l'Éternel te bénisse, et qu'il te garde! Que l'Éternel fasse luire sa face sur toi, et qu'il t'accorde sa grâce!" },
+  { ref: "Marc 11:24", text: "C'est pourquoi je vous dis: Tout ce que vous demanderez en priant, croyez que vous l'avez reçu, et vous le verrez s'accomplir." },
+  { ref: "Psaume 103:2-3", text: "Mon âme, bénis l'Éternel, et n'oublie aucun de ses bienfaits! C'est lui qui pardonne toutes tes iniquités, qui guérit toutes tes maladies." },
+  { ref: "Jacques 1:2-3", text: "Regardez comme un sujet de joie complète les diverses épreuves auxquelles vous pouvez être exposés, sachant que l'épreuve de votre foi produit la patience." },
+  { ref: "Psaume 62:1", text: "Oui, c'est en Dieu que mon âme se confie; de lui vient mon salut." },
+  { ref: "Romains 15:13", text: "Que le Dieu de l'espérance vous remplisse de toute joie et de toute paix dans la foi, pour que vous abondiez en espérance." },
+  { ref: "Psaume 90:12", text: "Enseigne-nous à bien compter nos jours, afin que nous appliquions notre cœur à la sagesse." },
+  { ref: "Proverbes 17:22", text: "Un cœur joyeux est un bon remède, mais un esprit abattu dessèche les os." },
+  { ref: "Ésaïe 26:3", text: "À celui dont la pensée est ferme tu assures la paix, la paix, parce qu'il se confie en toi." },
+  { ref: "1 Pierre 5:7", text: "Déchargez-vous sur lui de tous vos soucis, car lui-même prend soin de vous." },
+  { ref: "Psaume 143:8", text: "Fais-moi entendre dès le matin ta bonté! Car je me confie en toi." },
+  { ref: "Jean 14:27", text: "Je vous laisse la paix, je vous donne ma paix. Que votre cœur ne se trouble point, et ne s'alarme point." },
+  { ref: "Psaume 145:18", text: "L'Éternel est près de tous ceux qui l'invoquent, de tous ceux qui l'invoquent avec sincérité." },
+  { ref: "Colossiens 3:2", text: "Affectionnez-vous aux choses d'en haut, et non à celles qui sont sur la terre." },
+  { ref: "Psaume 55:22", text: "Remets ton sort à l'Éternel, et il te soutiendra." },
+  { ref: "Galates 6:9", text: "Ne nous lassons pas de faire le bien; car nous moissonnerons au temps convenable, si nous ne nous relâchons pas." },
+  { ref: "Psaume 73:26", text: "Ma chair et mon cœur peuvent se consumer: Dieu sera toujours le rocher de mon cœur." },
+  { ref: "Ésaïe 41:10", text: "Ne crains rien, car je suis avec toi; ne promène pas des regards inquiets, car je suis ton Dieu." },
+  { ref: "Psaume 100:5", text: "Car l'Éternel est bon; sa bonté dure toujours, et sa fidélité de génération en génération." },
+  { ref: "Proverbes 27:9", text: "L'huile et les parfums réjouissent le cœur, et les conseils affectueux d'un ami sont doux." },
+  { ref: "1 Thessaloniciens 5:16-18", text: "Soyez toujours joyeux. Priez sans cesse. Rendez grâces en toutes choses." },
+  { ref: "Psaume 34:19", text: "L'Éternel est près de ceux qui ont le cœur brisé, et il sauve ceux qui ont l'esprit dans l'abattement." },
+  { ref: "2 Timothée 1:7", text: "Car ce n'est pas un esprit de timidité que Dieu nous a donné, mais un esprit de force, d'amour et de sagesse." },
+  { ref: "Psaume 121:7-8", text: "L'Éternel te gardera de tout mal, il gardera ton âme." },
+  { ref: "Romains 5:8", text: "Dieu prouve son amour envers nous, en ce que, lorsque nous étions encore des pécheurs, Christ est mort pour nous." },
+  { ref: "Psaume 18:2", text: "Éternel, mon rocher, ma forteresse, mon libérateur! Mon Dieu, mon rocher, où je trouve un abri!" },
+  { ref: "Matthieu 5:16", text: "Que votre lumière luise ainsi devant les hommes, afin qu'ils voient vos bonnes œuvres, et qu'ils glorifient votre Père qui est dans les cieux." },
+  { ref: "Psaume 46:10", text: "Arrêtez, et sachez que je suis Dieu." },
+  { ref: "Proverbes 15:1", text: "Une réponse douce calme la fureur, mais une parole dure excite la colère." },
+  { ref: "Éphésiens 3:20", text: "Or, à celui qui peut faire, par la puissance qui agit en nous, infiniment au-delà de tout ce que nous demandons ou pensons." },
+  { ref: "Psaume 84:11", text: "Car l'Éternel Dieu est un soleil et un bouclier, l'Éternel donne la grâce et la gloire." },
+  { ref: "Jean 16:33", text: "Je vous ai dit ces choses, afin que vous ayez la paix en moi. Prenez courage, j'ai vaincu le monde." },
+  { ref: "Psaume 27:14", text: "Espère en l'Éternel! Fortifie-toi et que ton cœur s'affermisse! Espère en l'Éternel!" },
+  { ref: "1 Corinthiens 10:13", text: "Dieu est fidèle, et il ne permettra pas que vous soyez tentés au-delà de vos forces." },
+  { ref: "Psaume 5:3", text: "Éternel! le matin tu entends ma voix; le matin je me tourne vers toi, et j'attends." },
+  { ref: "Proverbes 4:23", text: "Garde ton cœur plus que toute autre chose, car de lui viennent les sources de la vie." },
+  { ref: "Psaume 138:8", text: "L'Éternel agira en ma faveur. Éternel, ta bonté dure toujours." },
+  { ref: "2 Corinthiens 12:9", text: "Ma grâce te suffit, car ma puissance s'accomplit dans la faiblesse." },
+  { ref: "Psaume 42:5", text: "Pourquoi t'abats-tu, mon âme, et gémis-tu au-dedans de moi? Espère en Dieu, car je le louerai encore." },
+  { ref: "Matthieu 7:7", text: "Demandez, et l'on vous donnera; cherchez, et vous trouverez; frappez, et l'on vous ouvrira." },
+  { ref: "Psaume 63:1", text: "Ô Dieu! tu es mon Dieu, je te cherche; mon âme a soif de toi." },
+  { ref: "Romains 8:38-39", text: "Rien ne pourra nous séparer de l'amour de Dieu manifesté en Jésus-Christ notre Seigneur." },
+  { ref: "Psaume 119:105", text: "Ta parole est une lampe à mes pieds, et une lumière sur mon sentier." },
+  { ref: "Proverbes 18:10", text: "Le nom de l'Éternel est une tour forte; le juste s'y réfugie, et il est en sûreté." },
+  { ref: "Psaume 30:5", text: "Le soir arrivent les pleurs, et le matin l'allégresse." },
+  { ref: "Éphésiens 6:10", text: "Fortifiez-vous dans le Seigneur, et par sa force toute-puissante." },
+  { ref: "Psaume 25:4-5", text: "Éternel! fais-moi connaître tes voies, enseigne-moi tes sentiers. Conduis-moi dans ta vérité, et instruis-moi." },
+  { ref: "Jean 15:5", text: "Je suis le cep, vous êtes les sarments. Celui qui demeure en moi et en qui je demeure porte beaucoup de fruit." },
+  { ref: "Psaume 71:3", text: "Sois pour moi un rocher de refuge, où je puisse toujours me retirer!" },
+  { ref: "1 Jean 1:9", text: "Si nous confessons nos péchés, il est fidèle et juste pour nous les pardonner." },
+  { ref: "Psaume 133:1", text: "Voici, oh! qu'il est agréable, qu'il est doux pour des frères de demeurer ensemble!" },
+  { ref: "Proverbes 22:6", text: "Instruis l'enfant selon la voie qu'il doit suivre; et quand il sera vieux, il ne s'en détournera pas." },
+  { ref: "Psaume 32:8", text: "Je t'instruirai et te montrerai la voie que tu dois suivre; je te conseillerai, j'aurai le regard sur toi." },
+  { ref: "Ésaïe 43:2", text: "Si tu traverses les eaux, je serai avec toi; et les fleuves, ils ne te submergeront point." },
+  { ref: "Psaume 86:5", text: "Car tu es bon, Seigneur, tu pardonnes, tu es plein d'amour pour tous ceux qui t'invoquent." },
+  { ref: "Colossiens 3:12", text: "Revêtez-vous donc, comme des élus de Dieu, saints et bien-aimés, d'entrailles de miséricorde, de bonté, d'humilité, de douceur, de patience." },
+  { ref: "Psaume 8:3-4", text: "Quand je contemple les cieux, ouvrage de tes mains... qu'est-ce que l'homme, pour que tu te souviennes de lui?" },
+  { ref: "Matthieu 6:26", text: "Regardez les oiseaux du ciel: ils ne sèment ni ne moissonnent... et votre Père céleste les nourrit." },
+  { ref: "Psaume 51:10", text: "Ô Dieu! crée en moi un cœur pur, renouvelle en moi un esprit bien disposé." },
+  { ref: "Jacques 4:8", text: "Approchez-vous de Dieu, et il s'approchera de vous." },
+  { ref: "Psaume 40:1-2", text: "J'ai mis en l'Éternel toute mon espérance; il s'est incliné vers moi, il a écouté mes cris." },
+  { ref: "Romains 12:12", text: "Réjouissez-vous en espérance. Soyez patients dans l'affliction. Persévérez dans la prière." },
+  { ref: "Psaume 96:1", text: "Chantez à l'Éternel un cantique nouveau! Chantez à l'Éternel, vous tous, habitants de la terre!" },
+  { ref: "Proverbes 10:12", text: "La haine excite des querelles, mais l'amour couvre toutes les fautes." },
+  { ref: "Psaume 145:9", text: "L'Éternel est bon envers tous, et ses compassions s'étendent sur toutes ses œuvres." },
+  { ref: "1 Corinthiens 16:14", text: "Que tout ce que vous faites se fasse avec charité!" },
+  { ref: "Psaume 4:8", text: "Je me couche et je m'endors en paix, car toi seul, ô Éternel! tu me donnes la sécurité." },
+  { ref: "Jean 13:34", text: "Je vous donne un commandement nouveau: Aimez-vous les uns les autres." },
+  { ref: "Psaume 112:7", text: "Il ne craint point les mauvaises nouvelles; son cœur est ferme, confiant en l'Éternel." },
+  { ref: "Éphésiens 5:20", text: "Rendez continuellement grâces pour toutes choses à Dieu le Père, au nom de notre Seigneur Jésus-Christ." },
+  { ref: "Psaume 19:14", text: "Reçois favorablement les paroles de ma bouche et les sentiments de mon cœur, ô Éternel, mon rocher et mon libérateur!" },
+  { ref: "Michée 6:8", text: "On t'a fait connaître, ô homme, ce qui est bien; pratiquer la justice, aimer la miséricorde, et marcher humblement avec ton Dieu." },
+  { ref: "Psaume 105:4", text: "Cherchez l'Éternel et son appui, cherchez continuellement sa face." },
+  { ref: "Marc 12:30-31", text: "Tu aimeras le Seigneur, ton Dieu, de tout ton cœur... Tu aimeras ton prochain comme toi-même." },
+  { ref: "Psaume 147:3", text: "Il guérit ceux qui ont le cœur brisé, et il panse leurs blessures." },
+  { ref: "Tite 3:5", text: "Il nous a sauvés, non à cause des œuvres de justice que nous aurions faites, mais selon sa miséricorde." },
+  { ref: "Psaume 149:4", text: "Car l'Éternel prend plaisir en son peuple; il glorifie les malheureux en les sauvant." },
+  { ref: "Proverbes 31:30", text: "La grâce est trompeuse, et la beauté est vaine; la femme qui craint l'Éternel est celle qui sera louée." },
+  { ref: "Psaume 118:1", text: "Louez l'Éternel, car il est bon, car sa miséricorde dure à toujours!" },
+  { ref: "Actes 20:35", text: "Il y a plus de bonheur à donner qu'à recevoir." },
+  { ref: "Psaume 92:1-2", text: "Il est beau de louer l'Éternel... d'annoncer le matin ta bonté, et ta fidélité pendant les nuits." },
+];
+
+const emotionKeys = Object.keys(EMOTION_VERSES);
+
+function VerseCard({ verse, isFav, onToggleFav, big }) {
+  const [copied, setCopied] = useState(false);
+
+  const copyVerse = () => {
+    const full = `« ${verse.text} » — ${verse.ref}`;
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(full).then(() => {
+        setCopied(true);
+        setTimeout(() => setCopied(false), 1600);
+      });
+    }
+  };
+
+  return (
+    <Card style={{ background: `linear-gradient(150deg, ${ROSE_LIGHT} 0%, #FBF3EF 100%)`, border: "none", position: "relative", padding: "22px 20px 18px" }}>
+      <div
+        style={{
+          fontFamily: "Georgia, serif",
+          fontSize: 46,
+          color: "rgba(140,90,100,0.18)",
+          position: "absolute",
+          top: 4,
+          left: 12,
+          lineHeight: 1,
+        }}
+      >
+        "
+      </div>
+      <div
+        style={{
+          display: "inline-block",
+          fontSize: 10.5,
+          textTransform: "uppercase",
+          letterSpacing: "0.08em",
+          color: ROSE_DARK,
+          fontWeight: 700,
+          background: "rgba(255,255,255,0.6)",
+          borderRadius: 999,
+          padding: "3px 10px",
+          marginBottom: 12,
+        }}
+      >
+        {verse.ref}
+      </div>
+      <div
+        style={{
+          fontFamily: "Georgia, serif",
+          fontStyle: "italic",
+          fontSize: big ? 17 : 15.5,
+          color: TEXT,
+          lineHeight: 1.65,
+          marginBottom: 16,
+          position: "relative",
+          zIndex: 1,
+        }}
+      >
+        {verse.text}
+      </div>
+      <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+        <button
+          onClick={onToggleFav}
+          style={{
+            border: "none",
+            background: "transparent",
+            color: isFav ? "#C9576B" : TEXT_MUTED,
+            display: "flex",
+            alignItems: "center",
+            gap: 5,
+            fontSize: 12.5,
+            fontWeight: 500,
+            cursor: "pointer",
+            padding: 0,
+          }}
+        >
+          <Heart size={15} fill={isFav ? "#C9576B" : "none"} />
+          {isFav ? "Coup de cœur" : "Ajouter"}
+        </button>
+        <button
+          onClick={copyVerse}
+          style={{
+            border: "none",
+            background: "transparent",
+            color: copied ? SAGE : TEXT_MUTED,
+            display: "flex",
+            alignItems: "center",
+            gap: 5,
+            fontSize: 12.5,
+            fontWeight: 500,
+            cursor: "pointer",
+            padding: 0,
+          }}
+        >
+          {copied ? <Check size={14} /> : <Share2 size={14} />}
+          {copied ? "Copié" : "Copier"}
+        </button>
+      </div>
+    </Card>
+  );
+}
+
+function ReligionScreen({ data, persist }) {
+  const [sub, setSub] = useState("jour");
+  const [mood, setMood] = useState(null);
+  const [dayOffset, setDayOffset] = useState(0); // 0 = aujourd'hui, négatif = jours passés
+
+  const favs = data.favoriteVerses || [];
+  const isFav = (v) => favs.some((f) => f.ref === v.ref);
+  const toggleFav = (v) => {
+    persist({
+      ...data,
+      favoriteVerses: isFav(v) ? favs.filter((f) => f.ref !== v.ref) : [...favs, v],
+    });
+  };
+
+  const viewDate = new Date();
+  viewDate.setDate(viewDate.getDate() + dayOffset);
+  const viewVerse = DAILY_VERSES[dayOfYear(viewDate) % DAILY_VERSES.length];
+  const isToday = dayOffset === 0;
+
+  // suivi de régularité (jours où le verset du jour a été consulté)
+  useEffect(() => {
+    if (sub !== "jour" || !isToday) return;
+    const log = data.verseReadDates || [];
+    if (!log.includes(todayKey())) {
+      persist({ ...data, verseReadDates: [...log, todayKey()].slice(-90) });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sub, isToday]);
+
+  let streak = 0;
+  {
+    const days = new Set(data.verseReadDates || []);
+    let d = new Date();
+    while (days.has(dateKey(d))) {
+      streak++;
+      d.setDate(d.getDate() - 1);
+    }
+  }
+
+  return (
+    <div>
+      <Header title="Foi" subtitle="Safe Place" />
+      <div style={{ padding: "0 clamp(16px,5vw,22px)" }}>
+        <div style={{ display: "flex", gap: 6, marginBottom: 14, flexWrap: "wrap" }}>
+          {[
+            ["jour", "Verset du jour"],
+            ["emotions", "Émotions"],
+            ["favoris", "Coups de cœur"],
+          ].map(([key, label]) => (
+            <button
+              key={key}
+              onClick={() => setSub(key)}
+              style={{
+                border: `1px solid ${sub === key ? ROSE : BORDER}`,
+                background: sub === key ? ROSE_LIGHT : "transparent",
+                color: sub === key ? ROSE_DARK : TEXT_MUTED,
+                borderRadius: 999,
+                padding: "6px 14px",
+                fontSize: 12,
+                fontWeight: 500,
+                cursor: "pointer",
+              }}
+            >
+              {label}
+              {key === "favoris" && favs.length > 0 && (
+                <span style={{ marginLeft: 5, opacity: 0.7 }}>({favs.length})</span>
+              )}
+            </button>
+          ))}
+        </div>
+
+        {sub === "jour" && (
+          <>
+            {streak > 1 && (
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 6,
+                  fontSize: 12,
+                  color: "#D08A3E",
+                  marginBottom: 10,
+                  fontWeight: 500,
+                }}
+              >
+                <Flame size={14} /> {streak} jours de lecture consécutifs
+              </div>
+            )}
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+              <button
+                onClick={() => setDayOffset((d) => Math.max(-13, d - 1))}
+                style={{ border: "none", background: "transparent", color: TEXT_MUTED, cursor: "pointer", padding: 4 }}
+              >
+                <ChevronLeft size={18} />
+              </button>
+              <span style={{ fontSize: 12.5, color: TEXT_MUTED, textTransform: "capitalize" }}>
+                {isToday ? "Aujourd'hui" : viewDate.toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" })}
+              </span>
+              <button
+                onClick={() => setDayOffset((d) => Math.min(0, d + 1))}
+                disabled={isToday}
+                style={{ border: "none", background: "transparent", color: isToday ? BORDER : TEXT_MUTED, cursor: isToday ? "default" : "pointer", padding: 4 }}
+              >
+                <ChevronRight size={18} />
+              </button>
+            </div>
+            <VerseCard verse={viewVerse} isFav={isFav(viewVerse)} onToggleFav={() => toggleFav(viewVerse)} big />
+            {!isToday && (
+              <button
+                onClick={() => setDayOffset(0)}
+                style={{ border: "none", background: "transparent", color: ROSE_DARK, fontSize: 12, textDecoration: "underline", cursor: "pointer", padding: 0, marginTop: 4 }}
+              >
+                Revenir à aujourd'hui
+              </button>
+            )}
+          </>
+        )}
+
+        {sub === "emotions" && (
+          <>
+            <p style={{ color: TEXT_MUTED, fontSize: 13, marginBottom: 12 }}>Comment tu te sens en ce moment ?</p>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 8, marginBottom: 14 }}>
+              {emotionKeys.map((key) => {
+                const Icon = EMOTION_ICONS[key];
+                const activeMood = mood === key;
+                return (
+                  <button
+                    key={key}
+                    onClick={() => setMood(key)}
+                    style={{
+                      border: activeMood ? `2px solid ${ROSE}` : `1px solid ${BORDER}`,
+                      background: activeMood ? ROSE_LIGHT : CARD,
+                      color: activeMood ? ROSE_DARK : TEXT,
+                      borderRadius: 14,
+                      padding: "12px 10px",
+                      fontSize: 13,
+                      fontWeight: 500,
+                      cursor: "pointer",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 8,
+                    }}
+                  >
+                    <Icon size={16} color={activeMood ? ROSE_DARK : TEXT_MUTED} />
+                    {EMOTION_VERSES[key].label}
+                  </button>
+                );
+              })}
+            </div>
+            {mood ? (
+              EMOTION_VERSES[mood].verses.map((v, i) => (
+                <VerseCard key={i} verse={v} isFav={isFav(v)} onToggleFav={() => toggleFav(v)} />
+              ))
+            ) : (
+              <p style={{ color: TEXT_MUTED, fontSize: 14, textAlign: "center", marginTop: 24 }}>
+                Choisis comment tu te sens pour recevoir des versets adaptés.
+              </p>
+            )}
+          </>
+        )}
+
+        {sub === "favoris" && (
+          <>
+            {favs.length === 0 && (
+              <p style={{ color: TEXT_MUTED, fontSize: 14, textAlign: "center", marginTop: 24 }}>
+                Aucun verset en coup de cœur pour l'instant. Touche le cœur sur un verset pour le garder ici.
+              </p>
+            )}
+            {favs.map((v, i) => (
+              <VerseCard key={i} verse={v} isFav={true} onToggleFav={() => toggleFav(v)} />
+            ))}
+          </>
+        )}
+        <div style={{ height: 80 }} />
+      </div>
+    </div>
+  );
+}
+
+/* ================= ACCUEIL ================= */
+function WelcomeScreen({ onContinue }) {
+  const features = [
+    { icon: Pill, label: "Pilules" },
+    { icon: Dumbbell, label: "Sport" },
+    { icon: CheckSquare, label: "Tâches" },
+    { icon: Droplet, label: "Eau" },
+    { icon: Film, label: "Film" },
+    { icon: BookOpen, label: "Foi" },
+  ];
+  return (
+    <div
+      style={{
+        minHeight: "100vh",
+        width: "100%",
+        maxWidth: 480,
+        margin: "0 auto",
+        boxSizing: "border-box",
+        background: `linear-gradient(180deg, ${ROSE_LIGHT} 0%, ${CREAM} 45%, ${CREAM} 100%)`,
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: "40px 28px",
+        fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+        textAlign: "center",
+      }}
+    >
+      <div
+        style={{
+          width: 68,
+          height: 68,
+          borderRadius: "50%",
+          background: "#fff",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          boxShadow: "0 8px 24px rgba(140,90,100,0.18)",
+          marginBottom: 22,
+        }}
+      >
+        <Flower2 size={30} color={ROSE} strokeWidth={1.4} />
+      </div>
+
+      <div
+        style={{
+          fontSize: 11.5,
+          letterSpacing: "0.22em",
+          textTransform: "uppercase",
+          color: ROSE_DARK,
+          fontWeight: 600,
+          marginBottom: 10,
+        }}
+      >
+        Eva SafePlace
+      </div>
+
+      <h1
+        style={{
+          fontFamily: "Georgia, 'Palatino Linotype', serif",
+          fontStyle: "italic",
+          fontWeight: 400,
+          fontSize: "clamp(30px,8vw,38px)",
+          color: TEXT,
+          margin: "0 0 12px",
+          lineHeight: 1.2,
+        }}
+      >
+        Bienvenue
+      </h1>
+
+      <p style={{ fontSize: 14.5, color: TEXT_MUTED, lineHeight: 1.6, maxWidth: 300, margin: "0 0 32px" }}>
+        Ton espace personnel, rien que pour toi : santé, sport, organisation et petits moments de douceur au même endroit.
+      </p>
+
+      <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "center", gap: 10, marginBottom: 40, maxWidth: 320 }}>
+        {features.map(({ icon: Icon, label }, i) => (
+          <div
+            key={i}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 6,
+              background: "#fff",
+              border: `1px solid ${BORDER}`,
+              borderRadius: 999,
+              padding: "7px 13px",
+              fontSize: 12,
+              color: TEXT_MUTED,
+            }}
+          >
+            <Icon size={13} color={ROSE_DARK} />
+            {label}
+          </div>
+        ))}
+      </div>
+
+      <PrimaryButton onClick={onContinue} style={{ padding: "14px 40px", fontSize: 15, boxShadow: "0 8px 20px rgba(140,90,100,0.28)" }}>
+        Continuer
+      </PrimaryButton>
+    </div>
+  );
+}
+
+const TABS = [
+  { key: "pills", label: "Pilules", icon: Pill },
+  { key: "sport", label: "Sport", icon: Dumbbell },
+  { key: "tasks", label: "Tâches", icon: CheckSquare },
+  { key: "hydration", label: "Eau", icon: Droplet },
+  { key: "film", label: "Film", icon: Film },
+  { key: "religion", label: "Foi", icon: BookOpen },
+];
+
+export default function Hub() {
+  const { data, persist, loaded } = useHubData();
+  const [tab, setTab] = useState("pills");
+  const [started, setStarted] = useState(false);
+  const touchStartX = useRef(null);
+  const touchStartY = useRef(null);
+
+  const handleTouchStart = (e) => {
+    touchStartX.current = e.touches[0].clientX;
+    touchStartY.current = e.touches[0].clientY;
+  };
+
+  const handleTouchEnd = (e) => {
+    if (touchStartX.current === null) return;
+    const dx = e.changedTouches[0].clientX - touchStartX.current;
+    const dy = e.changedTouches[0].clientY - (touchStartY.current || 0);
+    touchStartX.current = null;
+    touchStartY.current = null;
+    if (Math.abs(dx) < 60 || Math.abs(dx) < Math.abs(dy) * 1.5) return;
+    const idx = TABS.findIndex((t) => t.key === tab);
+    if (dx < 0 && idx < TABS.length - 1) setTab(TABS[idx + 1].key);
+    else if (dx > 0 && idx > 0) setTab(TABS[idx - 1].key);
+  };
+
+  if (!started) {
+    return <WelcomeScreen onContinue={() => setStarted(true)} />;
+  }
+
+  if (!loaded) {
+    return (
+      <div
+        style={{
+          minHeight: "100vh",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          background: CREAM,
+          fontFamily: "system-ui, sans-serif",
+          color: TEXT_MUTED,
+          fontSize: 14,
+        }}
+      >
+        Chargement...
+      </div>
+    );
+  }
+
+  return (
+    <div
+      onTouchStart={handleTouchStart}
+      onTouchEnd={handleTouchEnd}
+      style={{
+        minHeight: "100vh",
+        width: "100%",
+        background: `linear-gradient(180deg, ${ROSE_LIGHT} 0%, ${CREAM} 220px)`,
+        fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+        maxWidth: 480,
+        margin: "0 auto",
+        position: "relative",
+        boxSizing: "border-box",
+        paddingBottom: 66,
+        touchAction: "pan-y",
+      }}
+    >
+      {tab === "pills" && <PillsScreen data={data} persist={persist} />}
+      {tab === "sport" && <PilatesScreen data={data} persist={persist} />}
+      {tab === "tasks" && <TasksScreen data={data} persist={persist} />}
+      {tab === "hydration" && <HydrationScreen data={data} persist={persist} />}
+      {tab === "film" && <FilmScreen />}
+      {tab === "religion" && <ReligionScreen data={data} persist={persist} />}
+
+      <div
+        style={{
+          position: "fixed",
+          bottom: 0,
+          left: "50%",
+          transform: "translateX(-50%)",
+          width: "100%",
+          maxWidth: 480,
+          background: "rgba(251,243,239,0.94)",
+          backdropFilter: "blur(8px)",
+          borderTop: `1px solid ${BORDER}`,
+          boxShadow: "0 -4px 16px rgba(140,90,100,0.08)",
+          display: "flex",
+          justifyContent: "space-around",
+          padding: "8px 2px calc(8px + env(safe-area-inset-bottom))",
+          zIndex: 10,
+        }}
+      >
+        {TABS.map(({ key, label, icon: Icon }) => {
+          const active = tab === key;
+          return (
+            <button
+              key={key}
+              onClick={() => setTab(key)}
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                gap: 2,
+                border: "none",
+                background: "transparent",
+                cursor: "pointer",
+                color: active ? ROSE_DARK : TEXT_MUTED,
+                padding: "4px 6px",
+                borderRadius: 14,
+                flex: 1,
+                minWidth: 0,
+              }}
+            >
+              <div
+                style={{
+                  width: 32,
+                  height: 32,
+                  borderRadius: "50%",
+                  background: active ? ROSE_LIGHT : "transparent",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                <Icon size={17} strokeWidth={active ? 2 : 1.5} />
+              </div>
+              <span style={{ fontSize: 9.5, fontWeight: active ? 500 : 400, whiteSpace: "nowrap" }}>{label}</span>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
