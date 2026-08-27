@@ -17,8 +17,7 @@
 <script src="https://cdn.jsdelivr.net/npm/react-dom@18/umd/react-dom.production.min.js" crossorigin onerror="this.onerror=null;var s=document.createElement('script');s.src='https://unpkg.com/react-dom@18/umd/react-dom.production.min.js';s.crossOrigin='anonymous';document.head.appendChild(s);"></script>
 <script src="https://cdn.jsdelivr.net/npm/@babel/standalone/babel.min.js" onerror="this.onerror=null;var s=document.createElement('script');s.src='https://unpkg.com/@babel/standalone/babel.min.js';document.head.appendChild(s);"></script>
 
-<script type="text/plain" id="app-source">
-const { useState, useEffect, useRef } = React;
+<script type="text/plain" id="app-source">const { useState, useEffect, useRef } = React;
 
 /* ---------- STOCKAGE LOCAL (remplace window.storage, propre à Claude) ---------- */
 window.storage = {
@@ -298,7 +297,8 @@ function IconButton({ onClick, children, danger }) {
         background: "transparent",
         color: danger ? "#B85C5C" : TEXT_MUTED,
         cursor: "pointer",
-        padding: 6,
+        width: 36,
+        height: 36,
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
@@ -630,10 +630,12 @@ const ytSearchUrl = (query) =>
 
 function SessionDetail({ session, onBack, data, persist, isFav, onToggleFav }) {
   const level = LEVEL_LABELS[session.level];
-  const timesDone = (data.sessionHistory[session.id] || []).length;
+  const hist = data.sessionHistory[session.id] || [];
+  const timesDone = hist.length;
+  const doneToday = hist.includes(todayKey());
 
   const markDone = () => {
-    const hist = data.sessionHistory[session.id] || [];
+    if (doneToday) return;
     persist({
       ...data,
       sessionHistory: { ...data.sessionHistory, [session.id]: [...hist, todayKey()] },
@@ -664,7 +666,20 @@ function SessionDetail({ session, onBack, data, persist, isFav, onToggleFav }) {
           >
             {level.label}
           </span>
-          <button onClick={onToggleFav} style={{ border: "none", background: "transparent", cursor: "pointer", padding: 2 }}>
+          <button
+            onClick={onToggleFav}
+            style={{
+              border: "none",
+              background: "transparent",
+              cursor: "pointer",
+              width: 40,
+              height: 40,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              flexShrink: 0,
+            }}
+          >
             <Star size={20} color={isFav ? "#E0B84A" : BORDER} fill={isFav ? "#E0B84A" : "none"} />
           </button>
         </div>
@@ -718,6 +733,7 @@ function SessionDetail({ session, onBack, data, persist, isFav, onToggleFav }) {
 
         <button
           onClick={markDone}
+          disabled={doneToday}
           style={{
             width: "100%",
             boxSizing: "border-box",
@@ -726,28 +742,78 @@ function SessionDetail({ session, onBack, data, persist, isFav, onToggleFav }) {
             justifyContent: "center",
             gap: 8,
             border: `1.5px solid ${SAGE}`,
-            background: SAGE_LIGHT,
-            color: "#5C7449",
+            background: doneToday ? SAGE : SAGE_LIGHT,
+            color: doneToday ? "#fff" : "#5C7449",
             borderRadius: 999,
             padding: "13px 20px",
             fontSize: 14.5,
             fontWeight: 600,
-            cursor: "pointer",
+            cursor: doneToday ? "default" : "pointer",
             marginBottom: 90,
           }}
         >
-          <Check size={16} /> Marquer comme faite aujourd'hui
+          <Check size={16} /> {doneToday ? "Faite aujourd'hui ✓" : "Marquer comme faite aujourd'hui"}
         </button>
       </div>
     </div>
   );
 }
 
+function SessionCard({ s, data, isFav, onOpen, onToggleFavorite }) {
+  const level = LEVEL_LABELS[s.level];
+  const timesDone = (data.sessionHistory[s.id] || []).length;
+  return (
+    <Card onClick={() => onOpen(s)} style={{ cursor: "pointer" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+        <div style={{ flex: 1 }}>
+          <div style={{ fontSize: 15, fontWeight: 500, color: TEXT }}>{s.title}</div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 5, marginTop: 6 }}>
+            {s.focus.split(/,\s*/).map((f, i) => (
+              <span
+                key={i}
+                style={{ fontSize: 10.5, color: level.color, background: level.bg, borderRadius: 999, padding: "2px 8px" }}
+              >
+                {f}
+              </span>
+            ))}
+          </div>
+          <div style={{ display: "flex", gap: 10, marginTop: 8, alignItems: "center" }}>
+            <span style={{ fontSize: 11.5, color: TEXT_MUTED, display: "flex", alignItems: "center", gap: 3 }}>
+              <Clock size={12} /> {s.minutes} min
+            </span>
+            {timesDone > 0 && <span style={{ fontSize: 11.5, color: SAGE }}>réalisée {timesDone}x</span>}
+          </div>
+        </div>
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6, flexShrink: 0 }}>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onToggleFavorite(s.id);
+            }}
+            style={{
+              border: "none",
+              background: "transparent",
+              cursor: "pointer",
+              width: 36,
+              height: 36,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              flexShrink: 0,
+            }}
+          >
+            <Star size={16} color={isFav ? "#E0B84A" : BORDER} fill={isFav ? "#E0B84A" : "none"} />
+          </button>
+        </div>
+      </div>
+    </Card>
+  );
+}
+
 function PilatesScreen({ data, persist }) {
   const [preview, setPreview] = useState(null);
 
-  const toggleFavorite = (id, e) => {
-    if (e) e.stopPropagation();
+  const toggleFavorite = (id) => {
     const favs = data.favoriteSessions || [];
     persist({
       ...data,
@@ -791,45 +857,6 @@ function PilatesScreen({ data, persist }) {
 
   const favoriteSessions = PILATES_SESSIONS.filter((s) => favoriteIds.includes(s.id));
 
-  const SessionCard = ({ s }) => {
-    const level = LEVEL_LABELS[s.level];
-    const timesDone = (data.sessionHistory[s.id] || []).length;
-    const isFav = favoriteIds.includes(s.id);
-    return (
-      <Card onClick={() => setPreview(s)} style={{ cursor: "pointer" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-          <div style={{ flex: 1 }}>
-            <div style={{ fontSize: 15, fontWeight: 500, color: TEXT }}>{s.title}</div>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 5, marginTop: 6 }}>
-              {s.focus.split(/,\s*/).map((f, i) => (
-                <span
-                  key={i}
-                  style={{ fontSize: 10.5, color: level.color, background: level.bg, borderRadius: 999, padding: "2px 8px" }}
-                >
-                  {f}
-                </span>
-              ))}
-            </div>
-            <div style={{ display: "flex", gap: 10, marginTop: 8, alignItems: "center" }}>
-              <span style={{ fontSize: 11.5, color: TEXT_MUTED, display: "flex", alignItems: "center", gap: 3 }}>
-                <Clock size={12} /> {s.minutes} min
-              </span>
-              {timesDone > 0 && <span style={{ fontSize: 11.5, color: SAGE }}>réalisée {timesDone}x</span>}
-            </div>
-          </div>
-          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6, flexShrink: 0 }}>
-            <button
-              onClick={(e) => toggleFavorite(s.id, e)}
-              style={{ border: "none", background: "transparent", cursor: "pointer", padding: 2 }}
-            >
-              <Star size={16} color={isFav ? "#E0B84A" : BORDER} fill={isFav ? "#E0B84A" : "none"} />
-            </button>
-          </div>
-        </div>
-      </Card>
-    );
-  };
-
   return (
     <div>
       <Header title="Pilates" subtitle="Safe Place" />
@@ -858,7 +885,7 @@ function PilatesScreen({ data, persist }) {
               <Star size={12} fill="#E0B84A" color="#E0B84A" /> Mes favoris
             </div>
             {favoriteSessions.map((s) => (
-              <SessionCard key={s.id} s={s} />
+              <SessionCard key={s.id} s={s} data={data} isFav={true} onOpen={setPreview} onToggleFavorite={toggleFavorite} />
             ))}
           </div>
         )}
@@ -869,7 +896,14 @@ function PilatesScreen({ data, persist }) {
               {LEVEL_LABELS[level].label}
             </div>
             {PILATES_SESSIONS.filter((s) => s.level === level).map((s) => (
-              <SessionCard key={s.id} s={s} />
+              <SessionCard
+                key={s.id}
+                s={s}
+                data={data}
+                isFav={favoriteIds.includes(s.id)}
+                onOpen={setPreview}
+                onToggleFavorite={toggleFavorite}
+              />
             ))}
           </div>
         ))}
@@ -1979,11 +2013,12 @@ function WelcomeScreen({ onContinue }) {
   return (
     <div
       style={{
-        minHeight: "100vh",
+        height: "100dvh",
         width: "100%",
         maxWidth: 480,
         margin: "0 auto",
         boxSizing: "border-box",
+        overflow: "hidden",
         background: `linear-gradient(180deg, ${ROSE_LIGHT} 0%, ${CREAM} 45%, ${CREAM} 100%)`,
         display: "flex",
         flexDirection: "column",
@@ -2087,6 +2122,12 @@ function Hub() {
   const touchStartY = useRef(null);
 
   const handleTouchStart = (e) => {
+    const t = e.target;
+    if (t.closest && t.closest("button, a, input, textarea")) {
+      touchStartX.current = null;
+      touchStartY.current = null;
+      return;
+    }
     touchStartX.current = e.touches[0].clientX;
     touchStartY.current = e.touches[0].clientY;
   };
@@ -2111,7 +2152,7 @@ function Hub() {
     return (
       <div
         style={{
-          minHeight: "100vh",
+          height: "100dvh",
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
@@ -2128,10 +2169,8 @@ function Hub() {
 
   return (
     <div
-      onTouchStart={handleTouchStart}
-      onTouchEnd={handleTouchEnd}
       style={{
-        minHeight: "100vh",
+        height: "100dvh",
         width: "100%",
         background: `linear-gradient(180deg, ${ROSE_LIGHT} 0%, ${CREAM} 220px)`,
         fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
@@ -2139,25 +2178,42 @@ function Hub() {
         margin: "0 auto",
         position: "relative",
         boxSizing: "border-box",
-        paddingBottom: 66,
-        touchAction: "pan-y",
+        overflow: "hidden",
       }}
     >
-      {tab === "pills" && <PillsScreen data={data} persist={persist} />}
-      {tab === "sport" && <PilatesScreen data={data} persist={persist} />}
-      {tab === "tasks" && <TasksScreen data={data} persist={persist} />}
-      {tab === "hydration" && <HydrationScreen data={data} persist={persist} />}
-      {tab === "film" && <FilmScreen />}
-      {tab === "religion" && <ReligionScreen data={data} persist={persist} />}
+      <div
+        onTouchStart={handleTouchStart}
+        onTouchEnd={handleTouchEnd}
+        style={{
+          height: "100%",
+          width: "100%",
+          overflowY: "auto",
+          overscrollBehaviorY: "contain",
+          WebkitOverflowScrolling: "touch",
+          paddingBottom: 66,
+          boxSizing: "border-box",
+          touchAction: "pan-y",
+        }}
+      >
+        <style>{`
+          @keyframes fadeSlideIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+        `}</style>
+        <div key={tab} style={{ animation: "fadeSlideIn 0.22s ease" }}>
+          {tab === "pills" && <PillsScreen data={data} persist={persist} />}
+          {tab === "sport" && <PilatesScreen data={data} persist={persist} />}
+          {tab === "tasks" && <TasksScreen data={data} persist={persist} />}
+          {tab === "hydration" && <HydrationScreen data={data} persist={persist} />}
+          {tab === "film" && <FilmScreen />}
+          {tab === "religion" && <ReligionScreen data={data} persist={persist} />}
+        </div>
+      </div>
 
       <div
         style={{
-          position: "fixed",
+          position: "absolute",
           bottom: 0,
-          left: "50%",
-          transform: "translateX(-50%)",
+          left: 0,
           width: "100%",
-          maxWidth: 480,
           background: "rgba(251,243,239,0.94)",
           backdropFilter: "blur(8px)",
           borderTop: `1px solid ${BORDER}`,
@@ -2198,8 +2254,22 @@ function Hub() {
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
+                  position: "relative",
+                  transition: "background 0.2s",
                 }}
               >
+                {active && (
+                  <span
+                    style={{
+                      position: "absolute",
+                      top: -7,
+                      width: 4,
+                      height: 4,
+                      borderRadius: "50%",
+                      background: ROSE_DARK,
+                    }}
+                  />
+                )}
                 <Icon size={17} strokeWidth={active ? 2 : 1.5} />
               </div>
               <span style={{ fontSize: 9.5, fontWeight: active ? 500 : 400, whiteSpace: "nowrap" }}>{label}</span>
