@@ -5,9 +5,18 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
 <title>Eva SafePlace</title>
 <style>
-  html, body { margin: 0; padding: 0; background: #FBF3EF; }
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: #FBF3EF;
+    height: 100%;
+    overflow: hidden;
+    overscroll-behavior: none;
+    position: fixed;
+    width: 100%;
+  }
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-  #root { min-height: 100vh; }
+  #root { height: 100%; }
 </style>
 </head>
 <body>
@@ -170,6 +179,8 @@ const EMPTY = {
   favoriteSessions: [],
   favoriteVerses: [],
   verseReadDates: [],
+  dailyNotes: {},
+  favoriteFilms: [],
 };
 
 /* ---------- STORAGE HOOK ---------- */
@@ -445,11 +456,25 @@ function PillsScreen({ data, persist }) {
   }
   const cycleDayNumber = todayInfo.type === "pill" ? todayInfo.dayInPack : 21 + todayInfo.dayInBreak;
 
+  const numRows = Math.ceil(cells.length / 7);
+
   return (
-    <div>
-      <Header title="Pilules" subtitle="Safe Place" />
-      <div style={{ padding: "0 clamp(16px,5vw,22px)" }}>
-        <Card style={{ background: todayInfo.type === "pill" ? ROSE_LIGHT : SAGE_LIGHT, border: "none" }}>
+    <div style={{ height: "100%", display: "flex", flexDirection: "column" }}>
+      <div style={{ flexShrink: 0 }}>
+        <Header title="Pilules" subtitle="Safe Place" />
+      </div>
+      <div
+        style={{
+          flex: 1,
+          minHeight: 0,
+          display: "flex",
+          flexDirection: "column",
+          gap: 10,
+          padding: "0 clamp(16px,5vw,22px) 10px",
+          boxSizing: "border-box",
+        }}
+      >
+        <Card style={{ background: todayInfo.type === "pill" ? ROSE_LIGHT : SAGE_LIGHT, border: "none", margin: 0, flexShrink: 0 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10 }}>
             <div>
               <div style={{ fontSize: 13, color: todayInfo.type === "pill" ? ROSE_DARK : "#5C7449", fontWeight: 500 }}>
@@ -497,8 +522,8 @@ function PillsScreen({ data, persist }) {
             )}
           </div>
 
-          <div style={{ marginTop: 16 }}>
-            <div style={{ position: "relative", height: 8, borderRadius: 999, overflow: "hidden", display: "flex" }}>
+          <div style={{ marginTop: 14 }}>
+            <div style={{ position: "relative", height: 7, borderRadius: 999, overflow: "hidden", display: "flex" }}>
               <div style={{ width: `${(21 / 28) * 100}%`, background: "rgba(255,255,255,0.55)" }} />
               <div style={{ width: `${(7 / 28) * 100}%`, background: "rgba(255,255,255,0.3)" }} />
               <div
@@ -514,11 +539,11 @@ function PillsScreen({ data, persist }) {
                 }}
               />
             </div>
-            <div style={{ display: "flex", justifyContent: "space-between", marginTop: 5 }}>
-              <span style={{ fontSize: 10, color: todayInfo.type === "pill" ? ROSE_DARK : "#5C7449", opacity: 0.75 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", marginTop: 4 }}>
+              <span style={{ fontSize: 9.5, color: todayInfo.type === "pill" ? ROSE_DARK : "#5C7449", opacity: 0.75 }}>
                 21 jours de pilule
               </span>
-              <span style={{ fontSize: 10, color: todayInfo.type === "pill" ? ROSE_DARK : "#5C7449", opacity: 0.75 }}>
+              <span style={{ fontSize: 9.5, color: todayInfo.type === "pill" ? ROSE_DARK : "#5C7449", opacity: 0.75 }}>
                 7 jours de pause
               </span>
             </div>
@@ -526,7 +551,9 @@ function PillsScreen({ data, persist }) {
         </Card>
 
         {showLateBanner && (
-          <Card style={{ background: CORAL_LIGHT, border: "none", display: "flex", alignItems: "center", gap: 10 }}>
+          <Card
+            style={{ background: CORAL_LIGHT, border: "none", display: "flex", alignItems: "center", gap: 10, margin: 0, flexShrink: 0 }}
+          >
             <span style={{ fontSize: 18 }}>⏰</span>
             <span style={{ fontSize: 13, color: "#7A4A3D", fontWeight: 500 }}>
               Il est plus de 22h, n'oublie pas ta pilule ce soir !
@@ -534,8 +561,8 @@ function PillsScreen({ data, persist }) {
           </Card>
         )}
 
-        <Card style={{ padding: "14px 16px" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+        <Card style={{ padding: "12px 14px", margin: 0, flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexShrink: 0 }}>
             <IconButton onClick={() => setMonthOffset((m) => m - 1)}>
               <ChevronLeft size={18} />
             </IconButton>
@@ -544,14 +571,24 @@ function PillsScreen({ data, persist }) {
               <ChevronRight size={18} />
             </IconButton>
           </div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(7,1fr)", gap: 3, marginBottom: 5 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(7,1fr)", flexShrink: 0, marginTop: 4 }}>
             {["L", "M", "M", "J", "V", "S", "D"].map((d, i) => (
               <div key={i} style={{ textAlign: "center", fontSize: 10, color: TEXT_MUTED }}>
                 {d}
               </div>
             ))}
           </div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(7,1fr)", gap: 3 }}>
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(7,1fr)",
+              gridTemplateRows: `repeat(${numRows},1fr)`,
+              gap: 3,
+              flex: 1,
+              minHeight: 0,
+              marginTop: 3,
+            }}
+          >
             {cells.map((d, i) => {
               if (!d) return <div key={i} />;
               const key = dateKey(new Date(year, month, d));
@@ -563,8 +600,7 @@ function PillsScreen({ data, persist }) {
                   key={i}
                   onClick={() => info.type === "pill" && toggleTaken(key)}
                   style={{
-                    aspectRatio: "1",
-                    borderRadius: 10,
+                    borderRadius: 9,
                     border: isToday ? `1.5px solid ${ROSE_DARK}` : "1px solid transparent",
                     background: info.type === "pill" ? (taken ? ROSE : ROSE_LIGHT) : SAGE_LIGHT,
                     color: info.type === "pill" ? (taken ? "#fff" : ROSE_DARK) : "#5C7449",
@@ -574,6 +610,7 @@ function PillsScreen({ data, persist }) {
                     alignItems: "center",
                     justifyContent: "center",
                     cursor: info.type === "pill" ? "pointer" : "default",
+                    minHeight: 0,
                   }}
                 >
                   {d}
@@ -581,17 +618,17 @@ function PillsScreen({ data, persist }) {
               );
             })}
           </div>
-          <div style={{ display: "flex", gap: 14, marginTop: 10, fontSize: 11, color: TEXT_MUTED }}>
+          <div style={{ display: "flex", gap: 14, marginTop: 8, fontSize: 10.5, color: TEXT_MUTED, flexShrink: 0 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-              <span style={{ width: 10, height: 10, borderRadius: 3, background: ROSE, display: "inline-block" }} />
+              <span style={{ width: 9, height: 9, borderRadius: 3, background: ROSE, display: "inline-block" }} />
               pilule prise
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-              <span style={{ width: 10, height: 10, borderRadius: 3, background: ROSE_LIGHT, display: "inline-block" }} />
+              <span style={{ width: 9, height: 9, borderRadius: 3, background: ROSE_LIGHT, display: "inline-block" }} />
               à prendre
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-              <span style={{ width: 10, height: 10, borderRadius: 3, background: SAGE_LIGHT, display: "inline-block" }} />
+              <span style={{ width: 9, height: 9, borderRadius: 3, background: SAGE_LIGHT, display: "inline-block" }} />
               pause
             </div>
           </div>
@@ -1380,6 +1417,7 @@ const FILM_CATEGORIES = [
     label: "Marvel",
     color: CORAL,
     bg: CORAL_LIGHT,
+    icon: Shield,
     titles: [
       "Iron Man", "Iron Man 2", "Iron Man 3", "The Avengers", "Avengers: Age of Ultron",
       "Avengers: Infinity War", "Avengers: Endgame", "Les Gardiens de la Galaxie",
@@ -1395,6 +1433,7 @@ const FILM_CATEGORIES = [
     label: "Disney",
     color: ROSE_DARK,
     bg: ROSE_LIGHT,
+    icon: Star,
     titles: [
       "La Reine des Neiges", "La Reine des Neiges 2", "Le Roi Lion", "Vaiana", "Vaiana 2",
       "Raiponce", "Encanto", "Aladdin", "La Belle et la Bête", "Coco", "Zootopie", "Luca",
@@ -1408,6 +1447,7 @@ const FILM_CATEGORIES = [
     label: "Amour",
     color: "#B85C7A",
     bg: "#F7E4EC",
+    icon: Heart,
     titles: [
       "Titanic", "Notting Hill", "La La Land", "Orgueil et Préjugés", "Le Journal de Bridget Jones",
       "À la folie pas du tout", "Love Actually", "The Notebook", "500 jours ensemble",
@@ -1421,6 +1461,7 @@ const FILM_CATEGORIES = [
     label: "Comédie",
     color: "#C9A24A",
     bg: "#F7EED9",
+    icon: Sun,
     titles: [
       "Very Bad Trip", "Bridesmaids", "Mean Girls", "OSS 117", "Qu'est-ce qu'on a fait au Bon Dieu",
       "Le Sens de la fête", "Barbie", "21 Jump Street", "Superbad", "La Cité de la peur",
@@ -1433,6 +1474,7 @@ const FILM_CATEGORIES = [
     label: "Horreur",
     color: "#7A5C8F",
     bg: "#EBE3F0",
+    icon: Moon,
     titles: [
       "Scream", "Insidious", "Conjuring", "Sixième Sens", "Hérédité", "Get Out", "A Quiet Place",
       "It", "Halloween", "L'Exorciste", "Midsommar", "The Babadook", "Sinister", "Annabelle",
@@ -1444,6 +1486,7 @@ const FILM_CATEGORIES = [
     label: "Action",
     color: "#B04B4B",
     bg: "#F5DEDE",
+    icon: Flame,
     titles: [
       "Mission Impossible", "John Wick", "Mad Max: Fury Road", "Fast & Furious", "Die Hard",
       "Gladiator", "The Dark Knight", "Top Gun: Maverick", "Kill Bill", "Inception", "Skyfall",
@@ -1455,6 +1498,7 @@ const FILM_CATEGORIES = [
     label: "Animation",
     color: "#4E8E8E",
     bg: "#DDEFEF",
+    icon: Flower2,
     titles: [
       "Le Voyage de Chihiro", "Your Name", "Kung Fu Panda", "Comment Dresser Son Dragon", "Shrek",
       "L'Île aux Chiens", "Vice-Versa", "Wallace et Gromit", "Les Mondes de Ralph", "Coraline",
@@ -1467,6 +1511,7 @@ const FILM_CATEGORIES = [
     label: "Série",
     color: SAGE,
     bg: SAGE_LIGHT,
+    icon: BookOpen,
     titles: [
       "Stranger Things", "Friends", "Emily in Paris", "The Crown", "Bridgerton", "Grey's Anatomy",
       "Sex Education", "La Casa de Papel", "Outer Banks", "You", "Lupin", "Élite", "Dix pour cent",
@@ -1475,12 +1520,28 @@ const FILM_CATEGORIES = [
   },
 ];
 
-function FilmScreen() {
+function ytWatchUrl(title) {
+  return `https://www.google.com/search?q=${encodeURIComponent(title + " streaming où regarder")}&hl=fr`;
+}
+
+function FilmScreen({ data, persist }) {
+  const [sub, setSub] = useState("choisir");
   const [active, setActive] = useState(null);
   const [pick, setPick] = useState(null);
   const [spinning, setSpinning] = useState(false);
   const [infoCat, setInfoCat] = useState(null);
   const spinRef = useRef(null);
+
+  const favs = data.favoriteFilms || [];
+  const isFav = (title) => favs.some((f) => f.title === title);
+  const toggleFav = (title, catKey, catLabel) => {
+    persist({
+      ...data,
+      favoriteFilms: isFav(title)
+        ? favs.filter((f) => f.title !== title)
+        : [...favs, { title, category: catKey, categoryLabel: catLabel }],
+    });
+  };
 
   const spinTo = (cat, avoid) => {
     setActive(cat);
@@ -1512,136 +1573,268 @@ function FilmScreen() {
     <div>
       <Header title="Film" subtitle="Safe Place" />
       <div style={{ padding: "0 clamp(16px,5vw,22px)" }}>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 14 }}>
-          {FILM_CATEGORIES.map((cat) => (
-            <div
-              key={cat.key}
-              onClick={() => choose(cat)}
+        <div style={{ display: "flex", gap: 6, marginBottom: 14 }}>
+          {[
+            ["choisir", "Choisir"],
+            ["liste", "Ma liste"],
+          ].map(([key, label]) => (
+            <button
+              key={key}
+              onClick={() => setSub(key)}
               style={{
-                position: "relative",
-                border: active?.key === cat.key ? `2px solid ${cat.color}` : `1px solid ${BORDER}`,
-                background: cat.bg,
-                color: cat.color,
-                borderRadius: 16,
-                padding: "18px 34px 18px 10px",
-                fontSize: 14,
+                border: `1px solid ${sub === key ? ROSE : BORDER}`,
+                background: sub === key ? ROSE_LIGHT : "transparent",
+                color: sub === key ? ROSE_DARK : TEXT_MUTED,
+                borderRadius: 999,
+                padding: "6px 14px",
+                fontSize: 12,
                 fontWeight: 500,
                 cursor: "pointer",
-                textAlign: "center",
               }}
             >
-              {cat.label}
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setInfoCat(infoCat?.key === cat.key ? null : cat);
-                }}
-                style={{
-                  position: "absolute",
-                  top: 8,
-                  right: 8,
-                  width: 22,
-                  height: 22,
-                  borderRadius: "50%",
-                  border: `1px solid ${cat.color}`,
-                  background: "rgba(255,255,255,0.6)",
-                  color: cat.color,
-                  fontSize: 11,
-                  fontWeight: 700,
-                  fontStyle: "italic",
-                  fontFamily: "Georgia, serif",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  cursor: "pointer",
-                  lineHeight: 1,
-                }}
-                aria-label={`Voir tous les films ${cat.label}`}
-              >
-                i
-              </button>
-            </div>
+              {label}
+              {key === "liste" && favs.length > 0 && <span style={{ marginLeft: 5, opacity: 0.7 }}>({favs.length})</span>}
+            </button>
           ))}
         </div>
 
-        {infoCat && (
-          <Card style={{ background: infoCat.bg, border: "none" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-              <span style={{ fontSize: 12, textTransform: "uppercase", letterSpacing: "0.08em", color: infoCat.color, fontWeight: 600 }}>
-                Tous les titres — {infoCat.label}
-              </span>
-              <IconButton onClick={() => setInfoCat(null)}>
-                <X size={16} />
-              </IconButton>
+        {sub === "choisir" && (
+          <>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 8, marginBottom: 14 }}>
+              {FILM_CATEGORIES.map((cat) => {
+                const Icon = cat.icon;
+                const isActive = active?.key === cat.key;
+                return (
+                  <div key={cat.key} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 5 }}>
+                    <div
+                      onClick={() => choose(cat)}
+                      style={{
+                        position: "relative",
+                        width: "100%",
+                        aspectRatio: "1",
+                        borderRadius: 16,
+                        background: cat.bg,
+                        border: isActive ? `2px solid ${cat.color}` : "2px solid transparent",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        cursor: "pointer",
+                      }}
+                    >
+                      <Icon size={22} color={cat.color} strokeWidth={1.7} />
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setInfoCat(infoCat?.key === cat.key ? null : cat);
+                        }}
+                        style={{
+                          position: "absolute",
+                          top: -4,
+                          right: -4,
+                          width: 19,
+                          height: 19,
+                          borderRadius: "50%",
+                          border: `1px solid ${cat.color}`,
+                          background: "#fff",
+                          color: cat.color,
+                          fontSize: 10,
+                          fontWeight: 700,
+                          fontStyle: "italic",
+                          fontFamily: "Georgia, serif",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          cursor: "pointer",
+                          lineHeight: 1,
+                        }}
+                        aria-label={`Voir tous les films ${cat.label}`}
+                      >
+                        i
+                      </button>
+                    </div>
+                    <span style={{ fontSize: 10.5, color: TEXT_MUTED, fontWeight: 500, textAlign: "center" }}>{cat.label}</span>
+                  </div>
+                );
+              })}
             </div>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-              {infoCat.titles.map((t, i) => (
-                <span
-                  key={i}
+
+            {infoCat && (
+              <Card style={{ background: infoCat.bg, border: "none" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+                  <span style={{ fontSize: 12, textTransform: "uppercase", letterSpacing: "0.08em", color: infoCat.color, fontWeight: 600 }}>
+                    Tous les titres — {infoCat.label}
+                  </span>
+                  <IconButton onClick={() => setInfoCat(null)}>
+                    <X size={16} />
+                  </IconButton>
+                </div>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                  {infoCat.titles.map((t, i) => (
+                    <span
+                      key={i}
+                      style={{ fontSize: 12.5, color: TEXT, background: "rgba(255,255,255,0.7)", borderRadius: 999, padding: "5px 11px" }}
+                    >
+                      {t}
+                    </span>
+                  ))}
+                </div>
+              </Card>
+            )}
+
+            {pick && (
+              <>
+                <style>{`
+                  @keyframes filmPop { 0% { transform: scale(0.94); opacity: 0.6; } 100% { transform: scale(1); opacity: 1; } }
+                  @keyframes filmSpin { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-3px); } }
+                `}</style>
+                <Card
                   style={{
-                    fontSize: 12.5,
-                    color: TEXT,
-                    background: "rgba(255,255,255,0.7)",
-                    borderRadius: 999,
-                    padding: "5px 11px",
+                    textAlign: "center",
+                    padding: "30px 20px 22px",
+                    background: `linear-gradient(150deg, ${active.bg} 0%, #FBF3EF 100%)`,
+                    border: "none",
+                    animation: spinning ? "filmSpin 0.14s ease-in-out infinite" : "filmPop 0.3s ease-out",
                   }}
                 >
-                  {t}
-                </span>
-              ))}
-            </div>
-          </Card>
-        )}
+                  <div
+                    style={{
+                      display: "inline-block",
+                      fontSize: 10.5,
+                      textTransform: "uppercase",
+                      letterSpacing: "0.1em",
+                      color: active.color,
+                      fontWeight: 700,
+                      background: "rgba(255,255,255,0.6)",
+                      borderRadius: 999,
+                      padding: "3px 10px",
+                      marginBottom: 14,
+                    }}
+                  >
+                    {spinning ? "Tirage en cours..." : active.label}
+                  </div>
+                  <div
+                    style={{
+                      fontFamily: "Georgia, serif",
+                      fontStyle: "italic",
+                      fontSize: 25,
+                      color: TEXT,
+                      marginBottom: 20,
+                      opacity: spinning ? 0.55 : 1,
+                      transition: "opacity 0.1s",
+                      minHeight: 32,
+                    }}
+                  >
+                    {pick}
+                  </div>
+                  {!spinning && (
+                    <div style={{ display: "flex", justifyContent: "center", gap: 10, marginBottom: 16 }}>
+                      <button
+                        onClick={() => toggleFav(pick, active.key, active.label)}
+                        style={{
+                          border: "none",
+                          background: "rgba(255,255,255,0.7)",
+                          borderRadius: 999,
+                          padding: "8px 14px",
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 5,
+                          fontSize: 12.5,
+                          fontWeight: 600,
+                          color: isFav(pick) ? "#C9576B" : TEXT_MUTED,
+                          cursor: "pointer",
+                        }}
+                      >
+                        <Heart size={14} fill={isFav(pick) ? "#C9576B" : "none"} />
+                        {isFav(pick) ? "Dans ma liste" : "Ajouter"}
+                      </button>
+                      <a
+                        href={ytWatchUrl(pick)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{
+                          border: "none",
+                          background: "rgba(255,255,255,0.7)",
+                          borderRadius: 999,
+                          padding: "8px 14px",
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 5,
+                          fontSize: 12.5,
+                          fontWeight: 600,
+                          color: TEXT_MUTED,
+                          textDecoration: "none",
+                        }}
+                      >
+                        <Share2 size={13} /> Où regarder
+                      </a>
+                    </div>
+                  )}
+                  <PrimaryButton
+                    onClick={reroll}
+                    color={active.color}
+                    style={{ margin: "0 auto", opacity: spinning ? 0.6 : 1, pointerEvents: spinning ? "none" : "auto" }}
+                  >
+                    <Shuffle size={15} style={spinning ? { animation: "filmSpin 0.3s linear infinite" } : undefined} /> Autre suggestion
+                  </PrimaryButton>
+                </Card>
+              </>
+            )}
 
-        {pick && (
-          <>
-            <style>{`
-              @keyframes filmPop { 0% { transform: scale(0.94); opacity: 0.6; } 100% { transform: scale(1); opacity: 1; } }
-              @keyframes filmSpin { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-3px); } }
-            `}</style>
-            <Card
-              style={{
-                textAlign: "center",
-                padding: "28px 18px",
-                background: active.bg,
-                border: "none",
-                animation: spinning ? "filmSpin 0.14s ease-in-out infinite" : "filmPop 0.3s ease-out",
-              }}
-            >
-              <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: "0.1em", color: active.color, marginBottom: 8 }}>
-                {spinning ? "Tirage en cours..." : active.label}
-              </div>
-              <div
-                style={{
-                  fontFamily: "Georgia, serif",
-                  fontStyle: "italic",
-                  fontSize: 24,
-                  color: TEXT,
-                  marginBottom: 18,
-                  opacity: spinning ? 0.55 : 1,
-                  transition: "opacity 0.1s",
-                }}
-              >
-                {pick}
-              </div>
-              <PrimaryButton
-                onClick={reroll}
-                color={active.color}
-                style={{ margin: "0 auto", opacity: spinning ? 0.6 : 1, pointerEvents: spinning ? "none" : "auto" }}
-              >
-                <Shuffle size={15} style={spinning ? { animation: "filmSpin 0.3s linear infinite" } : undefined} /> Autre suggestion
-              </PrimaryButton>
-            </Card>
+            {!pick && (
+              <EmptyState icon={Shuffle} color="#8A7BB0" bg="#EAE5F3" text="Choisis une catégorie pour une suggestion au hasard." />
+            )}
           </>
         )}
 
-        {!pick && (
-          <EmptyState
-            icon={Shuffle}
-            color="#8A7BB0"
-            bg="#EAE5F3"
-            text="Choisis une catégorie pour une suggestion au hasard."
-          />
+        {sub === "liste" && (
+          <>
+            {favs.length === 0 && (
+              <EmptyState
+                icon={Heart}
+                color="#C9576B"
+                bg="#F7E4EC"
+                text="Aucun film enregistré pour l'instant. Ajoute-en un depuis une suggestion."
+              />
+            )}
+            {favs.map((f, i) => {
+              const cat = FILM_CATEGORIES.find((c) => c.key === f.category);
+              return (
+                <Card key={i} style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                  {cat && (
+                    <div
+                      style={{
+                        width: 34,
+                        height: 34,
+                        borderRadius: 12,
+                        background: cat.bg,
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        flexShrink: 0,
+                      }}
+                    >
+                      <cat.icon size={16} color={cat.color} />
+                    </div>
+                  )}
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 14, color: TEXT, fontWeight: 500 }}>{f.title}</div>
+                    <div style={{ fontSize: 11, color: TEXT_MUTED, marginTop: 2 }}>{f.categoryLabel}</div>
+                  </div>
+                  <a
+                    href={ytWatchUrl(f.title)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{ color: TEXT_MUTED, display: "flex", alignItems: "center", flexShrink: 0 }}
+                  >
+                    <Share2 size={15} />
+                  </a>
+                  <IconButton onClick={() => toggleFav(f.title)} danger>
+                    <X size={16} />
+                  </IconButton>
+                </Card>
+              );
+            })}
+          </>
         )}
         <div style={{ height: 80 }} />
       </div>
@@ -1865,6 +2058,41 @@ const DAILY_VERSES = [
 
 const emotionKeys = Object.keys(EMOTION_VERSES);
 
+// Prière du jour : courtes prières simples, un peu différentes chaque jour
+const DAILY_PRAYERS = [
+  "Merci pour ce nouveau jour. Aide-moi à avancer avec confiance et douceur envers moi-même.",
+  "Donne-moi la paix dans les moments d'incertitude, et la force de continuer malgré la fatigue.",
+  "Merci pour les personnes qui m'entourent et qui m'aiment. Garde-les en sécurité aujourd'hui.",
+  "Aide-moi à voir la beauté des petites choses, même dans une journée ordinaire.",
+  "Apaise mon esprit quand il s'emballe. Rappelle-moi que je ne suis pas seule.",
+  "Merci pour tout ce que j'ai déjà reçu. Aide-moi à rester reconnaissante aujourd'hui.",
+  "Donne-moi la patience envers moi-même et envers les autres, aujourd'hui plus que jamais.",
+  "Guide mes pas et mes décisions. Je te confie ce qui m'inquiète.",
+  "Merci pour la santé, le repos, et chaque respiration. Aide-moi à en prendre soin.",
+  "Remplis mon cœur de calme avant de commencer cette journée.",
+  "Aide-moi à pardonner, à moi-même comme aux autres, et à avancer léger.",
+  "Merci pour l'amour que je reçois et celui que je peux donner autour de moi.",
+  "Donne-moi le courage d'affronter ce qui m'attend aujourd'hui, un pas à la fois.",
+  "Aide-moi à ralentir un instant et à me souvenir que je suis soutenue.",
+  "Merci pour hier, pour aujourd'hui, et pour la promesse de demain.",
+  "Que mon cœur reste doux, même dans les journées difficiles.",
+  "Aide-moi à faire confiance au chemin, même quand je ne vois pas où il mène.",
+  "Merci pour le repos de la nuit dernière. Aide-moi à honorer ce corps qui me porte.",
+  "Donne-moi des mots doux pour moi-même aujourd'hui, comme j'en offrirais à une amie.",
+  "Aide-moi à accueillir la joie quand elle se présente, sans crainte de la perdre.",
+  "Merci pour la force que je ne savais pas avoir, jusqu'à ce que j'en aie besoin.",
+  "Que je trouve un moment de calme aujourd'hui, même court, pour respirer vraiment.",
+  "Aide-moi à être présente à ce que je vis, plutôt que de courir après autre chose.",
+  "Merci pour les rires, même petits, qui allègent une journée.",
+  "Donne-moi la sagesse de savoir quand me reposer et quand avancer.",
+  "Aide-moi à me sentir chez moi dans mon propre cœur aujourd'hui.",
+  "Merci pour chaque personne qui m'a tendu la main sans que je le demande.",
+  "Que la paix garde mon cœur et mes pensées, quoi qu'il arrive aujourd'hui.",
+  "Aide-moi à croire que les choses peuvent s'arranger, doucement, à leur rythme.",
+  "Merci d'être avec moi, même dans les jours où je ne le sens pas.",
+];
+
+
 function VerseCard({ verse, isFav, onToggleFav, big }) {
   const [copied, setCopied] = useState(false);
 
@@ -1965,10 +2193,64 @@ function VerseCard({ verse, isFav, onToggleFav, big }) {
   );
 }
 
+function PrayerCard({ text }) {
+  const [copied, setCopied] = useState(false);
+  const copyPrayer = () => {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(() => {
+        setCopied(true);
+        setTimeout(() => setCopied(false), 1600);
+      });
+    }
+  };
+  return (
+    <Card style={{ background: `linear-gradient(150deg, ${SAGE_LIGHT} 0%, #FBF3EF 100%)`, border: "none", padding: "22px 20px 18px" }}>
+      <div
+        style={{
+          display: "inline-block",
+          fontSize: 10.5,
+          textTransform: "uppercase",
+          letterSpacing: "0.08em",
+          color: "#5C7449",
+          fontWeight: 700,
+          background: "rgba(255,255,255,0.6)",
+          borderRadius: 999,
+          padding: "3px 10px",
+          marginBottom: 12,
+        }}
+      >
+        Prière du jour
+      </div>
+      <div style={{ fontFamily: "Georgia, serif", fontStyle: "italic", fontSize: 15.5, color: TEXT, lineHeight: 1.65, marginBottom: 14 }}>
+        {text}
+      </div>
+      <button
+        onClick={copyPrayer}
+        style={{
+          border: "none",
+          background: "transparent",
+          color: copied ? "#5C7449" : TEXT_MUTED,
+          display: "flex",
+          alignItems: "center",
+          gap: 5,
+          fontSize: 12.5,
+          fontWeight: 500,
+          cursor: "pointer",
+          padding: 0,
+        }}
+      >
+        {copied ? <Check size={14} /> : <Share2 size={14} />}
+        {copied ? "Copié" : "Copier"}
+      </button>
+    </Card>
+  );
+}
+
 function ReligionScreen({ data, persist }) {
   const [sub, setSub] = useState("jour");
   const [mood, setMood] = useState(null);
   const [dayOffset, setDayOffset] = useState(0); // 0 = aujourd'hui, négatif = jours passés
+  const [mode, setMode] = useState("verset"); // "verset" | "priere"
 
   const favs = data.favoriteVerses || [];
   const isFav = (v) => favs.some((f) => f.ref === v.ref);
@@ -1981,7 +2263,9 @@ function ReligionScreen({ data, persist }) {
 
   const viewDate = new Date();
   viewDate.setDate(viewDate.getDate() + dayOffset);
+  const viewKey = dateKey(viewDate);
   const viewVerse = DAILY_VERSES[dayOfYear(viewDate) % DAILY_VERSES.length];
+  const viewPrayer = DAILY_PRAYERS[dayOfYear(viewDate) % DAILY_PRAYERS.length];
   const isToday = dayOffset === 0;
 
   // suivi de régularité (jours où le verset du jour a été consulté)
@@ -2003,6 +2287,13 @@ function ReligionScreen({ data, persist }) {
       d.setDate(d.getDate() - 1);
     }
   }
+
+  const readDays = new Set(data.verseReadDates || []);
+  const last7 = Array.from({ length: 7 }, (_, i) => {
+    const d = new Date();
+    d.setDate(d.getDate() - (6 - i));
+    return { key: dateKey(d), label: d.toLocaleDateString("fr-FR", { weekday: "narrow" }), read: readDays.has(dateKey(d)) };
+  });
 
   return (
     <div>
@@ -2038,21 +2329,38 @@ function ReligionScreen({ data, persist }) {
 
         {sub === "jour" && (
           <>
-            {streak > 1 && (
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 6,
-                  fontSize: 12,
-                  color: "#D08A3E",
-                  marginBottom: 10,
-                  fontWeight: 500,
-                }}
-              >
-                <Flame size={14} /> {streak} jours de lecture consécutifs
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+              {streak > 1 ? (
+                <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "#D08A3E", fontWeight: 500 }}>
+                  <Flame size={14} /> {streak} jours de suite
+                </div>
+              ) : (
+                <span />
+              )}
+              <div style={{ display: "flex", gap: 4 }}>
+                {last7.map((d, i) => (
+                  <div
+                    key={i}
+                    title={d.key}
+                    style={{
+                      width: 20,
+                      height: 20,
+                      borderRadius: "50%",
+                      background: d.read ? SAGE : BORDER,
+                      color: d.read ? "#fff" : TEXT_MUTED,
+                      fontSize: 9,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      fontWeight: 600,
+                    }}
+                  >
+                    {d.read ? <Check size={11} /> : d.label}
+                  </div>
+                ))}
               </div>
-            )}
+            </div>
+
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
               <button
                 onClick={() => setDayOffset((d) => Math.max(-13, d - 1))}
@@ -2071,11 +2379,42 @@ function ReligionScreen({ data, persist }) {
                 <ChevronRight size={18} />
               </button>
             </div>
-            <VerseCard verse={viewVerse} isFav={isFav(viewVerse)} onToggleFav={() => toggleFav(viewVerse)} big />
+
+            <div style={{ display: "flex", gap: 6, marginBottom: 12 }}>
+              {[
+                ["verset", "Verset"],
+                ["priere", "Prière"],
+              ].map(([key, label]) => (
+                <button
+                  key={key}
+                  onClick={() => setMode(key)}
+                  style={{
+                    flex: 1,
+                    border: `1px solid ${mode === key ? (key === "verset" ? ROSE : SAGE) : BORDER}`,
+                    background: mode === key ? (key === "verset" ? ROSE_LIGHT : SAGE_LIGHT) : "transparent",
+                    color: mode === key ? (key === "verset" ? ROSE_DARK : "#5C7449") : TEXT_MUTED,
+                    borderRadius: 12,
+                    padding: "8px 0",
+                    fontSize: 12.5,
+                    fontWeight: 600,
+                    cursor: "pointer",
+                  }}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+
+            {mode === "verset" ? (
+              <VerseCard verse={viewVerse} isFav={isFav(viewVerse)} onToggleFav={() => toggleFav(viewVerse)} big />
+            ) : (
+              <PrayerCard text={viewPrayer} />
+            )}
+
             {!isToday && (
               <button
                 onClick={() => setDayOffset(0)}
-                style={{ border: "none", background: "transparent", color: ROSE_DARK, fontSize: 12, textDecoration: "underline", cursor: "pointer", padding: 0, marginTop: 4 }}
+                style={{ border: "none", background: "transparent", color: ROSE_DARK, fontSize: 12, textDecoration: "underline", cursor: "pointer", padding: 0, marginTop: 4, marginBottom: 8, display: "block" }}
               >
                 Revenir à aujourd'hui
               </button>
@@ -2163,7 +2502,7 @@ function WelcomeScreen({ onContinue }) {
         boxSizing: "border-box",
         overflow: "hidden",
         position: "relative",
-        background: CREAM,
+        background: `linear-gradient(180deg, ${ROSE_LIGHT} 0%, ${CREAM} 45%, ${CREAM} 100%)`,
         fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
       }}
     >
@@ -2424,12 +2763,12 @@ function Hub() {
         <style>{`
           @keyframes fadeSlideIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
         `}</style>
-        <div key={tab} style={{ animation: "fadeSlideIn 0.22s ease" }}>
+        <div key={tab} style={{ animation: "fadeSlideIn 0.22s ease", height: "100%" }}>
           {tab === "pills" && <PillsScreen data={data} persist={persist} />}
           {tab === "sport" && <PilatesScreen data={data} persist={persist} />}
           {tab === "tasks" && <TasksScreen data={data} persist={persist} />}
           {tab === "hydration" && <HydrationScreen data={data} persist={persist} />}
-          {tab === "film" && <FilmScreen />}
+          {tab === "film" && <FilmScreen data={data} persist={persist} />}
           {tab === "religion" && <ReligionScreen data={data} persist={persist} />}
         </div>
       </div>
