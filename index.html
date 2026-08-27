@@ -269,21 +269,59 @@ function Header({ title, subtitle }) {
   );
 }
 
+function GlobalStyle() {
+  return (
+    <style>{`
+      * { -webkit-tap-highlight-color: transparent; -webkit-font-smoothing: antialiased; }
+      button, a { touch-action: manipulation; transition: transform 0.12s ease, opacity 0.12s ease; }
+      button:active, a:active { transform: scale(0.96); }
+      .safeplace-scroll::-webkit-scrollbar { display: none; }
+      .safeplace-scroll { scrollbar-width: none; -ms-overflow-style: none; }
+      .safeplace-card-tap:active { transform: scale(0.985); }
+      .safeplace-input:focus { border-color: ${ROSE} !important; background: #fff !important; }
+    `}</style>
+  );
+}
+
 function Card({ children, style, onClick }) {
   return (
     <div
       onClick={onClick}
+      className={onClick ? "safeplace-card-tap" : undefined}
       style={{
         background: CARD,
         border: `1px solid ${BORDER}`,
         borderRadius: 18,
         padding: "16px 18px",
         marginBottom: 12,
-        boxShadow: "0 2px 10px rgba(140,90,100,0.05)",
+        boxShadow: "0 3px 14px rgba(140,90,100,0.06)",
+        transition: "transform 0.12s ease, box-shadow 0.12s ease",
         ...style,
       }}
     >
       {children}
+    </div>
+  );
+}
+
+function EmptyState({ icon: Icon, text, color, bg }) {
+  return (
+    <div style={{ textAlign: "center", padding: "36px 20px" }}>
+      <div
+        style={{
+          width: 52,
+          height: 52,
+          borderRadius: "50%",
+          background: bg || ROSE_LIGHT,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          margin: "0 auto 14px",
+        }}
+      >
+        <Icon size={22} color={color || ROSE_DARK} strokeWidth={1.6} />
+      </div>
+      <p style={{ color: TEXT_MUTED, fontSize: 13.5, lineHeight: 1.5, maxWidth: 230, margin: "0 auto" }}>{text}</p>
     </div>
   );
 }
@@ -340,6 +378,7 @@ function TextField(props) {
   return (
     <input
       {...props}
+      className="safeplace-input"
       style={{
         border: `1px solid ${BORDER}`,
         borderRadius: 12,
@@ -350,6 +389,7 @@ function TextField(props) {
         width: "100%",
         boxSizing: "border-box",
         background: CREAM,
+        transition: "border-color 0.15s, background 0.15s",
         ...(props.style || {}),
       }}
     />
@@ -403,6 +443,7 @@ function PillsScreen({ data, persist }) {
     const daysLeftInBreak = 7 - todayInfo.dayInBreak + 1;
     remainingMsg = `Semaine sans pilule — reprise dans ${daysLeftInBreak} jour${daysLeftInBreak > 1 ? "s" : ""}.`;
   }
+  const cycleDayNumber = todayInfo.type === "pill" ? todayInfo.dayInPack : 21 + todayInfo.dayInBreak;
 
   return (
     <div>
@@ -455,6 +496,33 @@ function PillsScreen({ data, persist }) {
               </button>
             )}
           </div>
+
+          <div style={{ marginTop: 16 }}>
+            <div style={{ position: "relative", height: 8, borderRadius: 999, overflow: "hidden", display: "flex" }}>
+              <div style={{ width: `${(21 / 28) * 100}%`, background: "rgba(255,255,255,0.55)" }} />
+              <div style={{ width: `${(7 / 28) * 100}%`, background: "rgba(255,255,255,0.3)" }} />
+              <div
+                style={{
+                  position: "absolute",
+                  top: 0,
+                  left: 0,
+                  height: "100%",
+                  width: `${(cycleDayNumber / 28) * 100}%`,
+                  background: todayInfo.type === "pill" ? ROSE_DARK : "#5C7449",
+                  borderRadius: 999,
+                  transition: "width 0.4s ease",
+                }}
+              />
+            </div>
+            <div style={{ display: "flex", justifyContent: "space-between", marginTop: 5 }}>
+              <span style={{ fontSize: 10, color: todayInfo.type === "pill" ? ROSE_DARK : "#5C7449", opacity: 0.75 }}>
+                21 jours de pilule
+              </span>
+              <span style={{ fontSize: 10, color: todayInfo.type === "pill" ? ROSE_DARK : "#5C7449", opacity: 0.75 }}>
+                7 jours de pause
+              </span>
+            </div>
+          </div>
         </Card>
 
         {showLateBanner && (
@@ -466,8 +534,8 @@ function PillsScreen({ data, persist }) {
           </Card>
         )}
 
-        <Card>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+        <Card style={{ padding: "14px 16px" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
             <IconButton onClick={() => setMonthOffset((m) => m - 1)}>
               <ChevronLeft size={18} />
             </IconButton>
@@ -476,14 +544,14 @@ function PillsScreen({ data, persist }) {
               <ChevronRight size={18} />
             </IconButton>
           </div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(7,1fr)", gap: 4, marginBottom: 6 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(7,1fr)", gap: 3, marginBottom: 5 }}>
             {["L", "M", "M", "J", "V", "S", "D"].map((d, i) => (
               <div key={i} style={{ textAlign: "center", fontSize: 10, color: TEXT_MUTED }}>
                 {d}
               </div>
             ))}
           </div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(7,1fr)", gap: 4 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(7,1fr)", gap: 3 }}>
             {cells.map((d, i) => {
               if (!d) return <div key={i} />;
               const key = dateKey(new Date(year, month, d));
@@ -513,7 +581,7 @@ function PillsScreen({ data, persist }) {
               );
             })}
           </div>
-          <div style={{ display: "flex", gap: 14, marginTop: 14, fontSize: 11, color: TEXT_MUTED }}>
+          <div style={{ display: "flex", gap: 14, marginTop: 10, fontSize: 11, color: TEXT_MUTED }}>
             <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
               <span style={{ width: 10, height: 10, borderRadius: 3, background: ROSE, display: "inline-block" }} />
               pilule prise
@@ -528,7 +596,6 @@ function PillsScreen({ data, persist }) {
             </div>
           </div>
         </Card>
-        <div style={{ height: 90 }} />
       </div>
     </div>
   );
@@ -633,6 +700,7 @@ function SessionDetail({ session, onBack, data, persist, isFav, onToggleFav }) {
   const hist = data.sessionHistory[session.id] || [];
   const timesDone = hist.length;
   const doneToday = hist.includes(todayKey());
+  const [celebrate, setCelebrate] = useState(false);
 
   const markDone = () => {
     if (doneToday) return;
@@ -640,10 +708,42 @@ function SessionDetail({ session, onBack, data, persist, isFav, onToggleFav }) {
       ...data,
       sessionHistory: { ...data.sessionHistory, [session.id]: [...hist, todayKey()] },
     });
+    setCelebrate(true);
+    setTimeout(() => setCelebrate(false), 1700);
   };
 
   return (
-    <div>
+    <div style={{ position: "relative" }}>
+      {celebrate && (
+        <div
+          style={{
+            position: "sticky",
+            top: 12,
+            zIndex: 20,
+            display: "flex",
+            justifyContent: "center",
+            pointerEvents: "none",
+          }}
+        >
+          <style>{`
+            @keyframes toastPop { 0% { opacity: 0; transform: translateY(-8px) scale(0.9); } 15% { opacity: 1; transform: translateY(0) scale(1); } 85% { opacity: 1; } 100% { opacity: 0; transform: translateY(-4px); } }
+          `}</style>
+          <div
+            style={{
+              background: SAGE,
+              color: "#fff",
+              padding: "9px 18px",
+              borderRadius: 999,
+              fontSize: 13.5,
+              fontWeight: 600,
+              boxShadow: "0 6px 18px rgba(143,165,125,0.4)",
+              animation: "toastPop 1.7s ease forwards",
+            }}
+          >
+            Bravo, séance validée ! 🎉
+          </div>
+        </div>
+      )}
       <div style={{ padding: "18px clamp(16px,5vw,22px) 6px", display: "flex", alignItems: "center", gap: 10 }}>
         <IconButton onClick={onBack}>
           <ChevronLeft size={20} />
@@ -1063,7 +1163,12 @@ function TasksScreen({ data, persist }) {
         </div>
 
         {sorted.length === 0 && (
-          <p style={{ color: TEXT_MUTED, fontSize: 14, textAlign: "center", marginTop: 24 }}>Aucune tâche ici.</p>
+          <EmptyState
+            icon={CheckSquare}
+            color={ROSE_DARK}
+            bg={ROSE_LIGHT}
+            text="Aucune tâche ici pour l'instant. Ajoute la première ci-dessus."
+          />
         )}
 
         {sorted.map((t) => {
@@ -1156,54 +1261,90 @@ function HydrationScreen({ data, persist }) {
     return { label: d.toLocaleDateString("fr-FR", { weekday: "short" }).slice(0, 2), value: data.hydration[key] || 0 };
   });
 
+  const pct = Math.min(1, count / HYDRATION_GOAL_GLASSES);
+  const radius = 72;
+  const circumference = 2 * Math.PI * radius;
+  const goalReached = count >= HYDRATION_GOAL_GLASSES;
+
   return (
     <div>
       <Header title="Hydratation" subtitle="Safe Place" />
       <div style={{ padding: "0 clamp(16px,5vw,22px)" }}>
-        <Card style={{ textAlign: "center", padding: "28px 18px" }}>
-          <div style={{ fontSize: 42, fontWeight: 500, color: SAGE }}>
-            {count}
-            <span style={{ fontSize: 18, color: TEXT_MUTED }}> / {HYDRATION_GOAL_GLASSES}</span>
-          </div>
-          <div style={{ fontSize: 12, color: TEXT_MUTED, marginTop: 2, marginBottom: 18 }}>
-            verres aujourd'hui ({(count * GLASS_ML) / 1000} L)
-          </div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(8, 1fr)", gap: 6, marginBottom: 20 }}>
-            {Array.from({ length: HYDRATION_MAX_GLASSES }, (_, i) => (
-              <Droplet key={i} size={20} color={i < count ? SAGE : BORDER} fill={i < count ? SAGE : "none"} strokeWidth={1.5} />
-            ))}
-          </div>
-          <div style={{ display: "flex", justifyContent: "center", gap: 12 }}>
+        <Card style={{ textAlign: "center", padding: "26px 18px 22px" }}>
+          <style>{`@keyframes ringGrow { from { stroke-dashoffset: ${circumference}; } }`}</style>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 22 }}>
             <button
               onClick={() => setCount(count - 1)}
               style={{
-                width: 44,
-                height: 44,
+                width: 42,
+                height: 42,
                 borderRadius: "50%",
                 border: `1.5px solid ${BORDER}`,
-                background: "transparent",
+                background: "#fff",
                 fontSize: 18,
                 color: TEXT_MUTED,
                 cursor: "pointer",
+                flexShrink: 0,
               }}
             >
               −
             </button>
+
+            <div style={{ position: "relative", width: 168, height: 168, flexShrink: 0 }}>
+              <svg width="168" height="168" viewBox="0 0 168 168" style={{ transform: "rotate(-90deg)" }}>
+                <circle cx="84" cy="84" r={radius} fill="none" stroke={SAGE_LIGHT} strokeWidth="14" />
+                <circle
+                  cx="84"
+                  cy="84"
+                  r={radius}
+                  fill="none"
+                  stroke={goalReached ? "#D08A3E" : SAGE}
+                  strokeWidth="14"
+                  strokeLinecap="round"
+                  strokeDasharray={circumference}
+                  strokeDashoffset={circumference * (1 - pct)}
+                  style={{ animation: "ringGrow 0.6s ease-out", transition: "stroke-dashoffset 0.4s ease, stroke 0.3s ease" }}
+                />
+              </svg>
+              <div
+                style={{
+                  position: "absolute",
+                  inset: 0,
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                {goalReached ? (
+                  <span style={{ fontSize: 26 }}>🎉</span>
+                ) : (
+                  <Droplet size={22} color={SAGE} fill={SAGE} />
+                )}
+                <div style={{ fontSize: 30, fontWeight: 600, color: TEXT, marginTop: 4, lineHeight: 1 }}>{count}</div>
+                <div style={{ fontSize: 11.5, color: TEXT_MUTED, marginTop: 2 }}>/ {HYDRATION_GOAL_GLASSES} verres</div>
+              </div>
+            </div>
+
             <button
               onClick={() => setCount(count + 1)}
               style={{
-                width: 44,
-                height: 44,
+                width: 42,
+                height: 42,
                 borderRadius: "50%",
                 border: "none",
                 background: SAGE,
                 fontSize: 18,
                 color: "#fff",
                 cursor: "pointer",
+                flexShrink: 0,
               }}
             >
               +
             </button>
+          </div>
+          <div style={{ fontSize: 12, color: TEXT_MUTED, marginTop: 16 }}>
+            {((count * GLASS_ML) / 1000).toFixed(2).replace(/\.?0+$/, "")} L aujourd'hui
           </div>
         </Card>
 
@@ -1495,9 +1636,12 @@ function FilmScreen() {
         )}
 
         {!pick && (
-          <p style={{ color: TEXT_MUTED, fontSize: 14, textAlign: "center", marginTop: 24 }}>
-            Choisis une catégorie pour une suggestion au hasard.
-          </p>
+          <EmptyState
+            icon={Shuffle}
+            color="#8A7BB0"
+            bg="#EAE5F3"
+            text="Choisis une catégorie pour une suggestion au hasard."
+          />
         )}
         <div style={{ height: 80 }} />
       </div>
@@ -1975,9 +2119,7 @@ function ReligionScreen({ data, persist }) {
                 <VerseCard key={i} verse={v} isFav={isFav(v)} onToggleFav={() => toggleFav(v)} />
               ))
             ) : (
-              <p style={{ color: TEXT_MUTED, fontSize: 14, textAlign: "center", marginTop: 24 }}>
-                Choisis comment tu te sens pour recevoir des versets adaptés.
-              </p>
+              <EmptyState icon={Heart} text="Choisis comment tu te sens pour recevoir des versets adaptés." />
             )}
           </>
         )}
@@ -1985,9 +2127,10 @@ function ReligionScreen({ data, persist }) {
         {sub === "favoris" && (
           <>
             {favs.length === 0 && (
-              <p style={{ color: TEXT_MUTED, fontSize: 14, textAlign: "center", marginTop: 24 }}>
-                Aucun verset en coup de cœur pour l'instant. Touche le cœur sur un verset pour le garder ici.
-              </p>
+              <EmptyState
+                icon={Heart}
+                text="Aucun verset en coup de cœur pour l'instant. Touche le cœur sur un verset pour le garder ici."
+              />
             )}
             {favs.map((v, i) => (
               <VerseCard key={i} verse={v} isFav={true} onToggleFav={() => toggleFav(v)} />
@@ -2003,12 +2146,12 @@ function ReligionScreen({ data, persist }) {
 /* ================= ACCUEIL ================= */
 function WelcomeScreen({ onContinue }) {
   const features = [
-    { icon: Pill, label: "Pilules" },
-    { icon: Dumbbell, label: "Sport" },
-    { icon: CheckSquare, label: "Tâches" },
-    { icon: Droplet, label: "Eau" },
-    { icon: Film, label: "Film" },
-    { icon: BookOpen, label: "Foi" },
+    { icon: Pill, label: "Pilules", color: ROSE_DARK, bg: ROSE_LIGHT },
+    { icon: Dumbbell, label: "Sport", color: SAGE, bg: SAGE_LIGHT },
+    { icon: CheckSquare, label: "Tâches", color: CORAL, bg: CORAL_LIGHT },
+    { icon: Droplet, label: "Eau", color: "#4E8E8E", bg: "#DDEFEF" },
+    { icon: Film, label: "Film", color: "#8A7BB0", bg: "#EAE5F3" },
+    { icon: BookOpen, label: "Foi", color: ROSE_DARK, bg: ROSE_LIGHT },
   ];
   return (
     <div
@@ -2019,88 +2162,157 @@ function WelcomeScreen({ onContinue }) {
         margin: "0 auto",
         boxSizing: "border-box",
         overflow: "hidden",
-        background: `linear-gradient(180deg, ${ROSE_LIGHT} 0%, ${CREAM} 45%, ${CREAM} 100%)`,
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        justifyContent: "center",
-        padding: "40px 28px",
+        position: "relative",
+        background: CREAM,
         fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
-        textAlign: "center",
       }}
     >
+      <GlobalStyle />
+      <style>{`
+        @keyframes wpFadeUp { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes wpPop { from { opacity: 0; transform: scale(0.85); } to { opacity: 1; transform: scale(1); } }
+        @keyframes wpDrift { 0%,100% { transform: translate(0,0); } 50% { transform: translate(-8px,10px); } }
+      `}</style>
+
+      {/* formes décoratives en fond */}
       <div
         style={{
-          width: 68,
-          height: 68,
+          position: "absolute",
+          top: -60,
+          right: -60,
+          width: 220,
+          height: 220,
           borderRadius: "50%",
-          background: "#fff",
+          background: `radial-gradient(circle, ${ROSE_LIGHT} 0%, transparent 70%)`,
+          filter: "blur(2px)",
+          animation: "wpDrift 9s ease-in-out infinite",
+        }}
+      />
+      <div
+        style={{
+          position: "absolute",
+          bottom: -40,
+          left: -50,
+          width: 180,
+          height: 180,
+          borderRadius: "50%",
+          background: `radial-gradient(circle, ${SAGE_LIGHT} 0%, transparent 70%)`,
+          filter: "blur(2px)",
+          animation: "wpDrift 11s ease-in-out infinite reverse",
+        }}
+      />
+
+      <div
+        style={{
+          position: "relative",
+          height: "100%",
           display: "flex",
+          flexDirection: "column",
           alignItems: "center",
           justifyContent: "center",
-          boxShadow: "0 8px 24px rgba(140,90,100,0.18)",
-          marginBottom: 22,
+          padding: "40px 30px",
+          textAlign: "center",
         }}
       >
-        <Flower2 size={30} color={ROSE} strokeWidth={1.4} />
-      </div>
+        <div
+          style={{
+            width: 76,
+            height: 76,
+            borderRadius: "26px",
+            background: `linear-gradient(145deg, ${ROSE} 0%, ${ROSE_DARK} 100%)`,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            boxShadow: `0 12px 28px ${ROSE}66`,
+            marginBottom: 24,
+            animation: "wpPop 0.5s cubic-bezier(0.34,1.56,0.64,1) both",
+          }}
+        >
+          <Flower2 size={34} color="#fff" strokeWidth={1.6} />
+        </div>
 
-      <div
-        style={{
-          fontSize: 11.5,
-          letterSpacing: "0.22em",
-          textTransform: "uppercase",
-          color: ROSE_DARK,
-          fontWeight: 600,
-          marginBottom: 10,
-        }}
-      >
-        Eva SafePlace
-      </div>
+        <div
+          style={{
+            fontSize: 11.5,
+            letterSpacing: "0.24em",
+            textTransform: "uppercase",
+            color: ROSE_DARK,
+            fontWeight: 700,
+            marginBottom: 10,
+            animation: "wpFadeUp 0.5s ease 0.08s both",
+          }}
+        >
+          Eva SafePlace
+        </div>
 
-      <h1
-        style={{
-          fontFamily: "Georgia, 'Palatino Linotype', serif",
-          fontStyle: "italic",
-          fontWeight: 400,
-          fontSize: "clamp(30px,8vw,38px)",
-          color: TEXT,
-          margin: "0 0 12px",
-          lineHeight: 1.2,
-        }}
-      >
-        Bienvenue
-      </h1>
+        <h1
+          style={{
+            fontFamily: "Georgia, 'Palatino Linotype', serif",
+            fontStyle: "italic",
+            fontWeight: 400,
+            fontSize: "clamp(32px,9vw,40px)",
+            color: TEXT,
+            margin: "0 0 14px",
+            lineHeight: 1.15,
+            animation: "wpFadeUp 0.5s ease 0.14s both",
+          }}
+        >
+          Bienvenue
+        </h1>
 
-      <p style={{ fontSize: 14.5, color: TEXT_MUTED, lineHeight: 1.6, maxWidth: 300, margin: "0 0 32px" }}>
-        Ton espace personnel, rien que pour toi : santé, sport, organisation et petits moments de douceur au même endroit.
-      </p>
+        <p
+          style={{
+            fontSize: 14.5,
+            color: TEXT_MUTED,
+            lineHeight: 1.6,
+            maxWidth: 290,
+            margin: "0 0 34px",
+            animation: "wpFadeUp 0.5s ease 0.2s both",
+          }}
+        >
+          Ton espace personnel, rien que pour toi : santé, sport, organisation et petits moments de douceur au même endroit.
+        </p>
 
-      <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "center", gap: 10, marginBottom: 40, maxWidth: 320 }}>
-        {features.map(({ icon: Icon, label }, i) => (
-          <div
-            key={i}
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 6,
-              background: "#fff",
-              border: `1px solid ${BORDER}`,
-              borderRadius: 999,
-              padding: "7px 13px",
-              fontSize: 12,
-              color: TEXT_MUTED,
-            }}
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(3, 1fr)",
+            gap: 10,
+            marginBottom: 36,
+            width: "100%",
+            maxWidth: 300,
+            animation: "wpFadeUp 0.5s ease 0.26s both",
+          }}
+        >
+          {features.map(({ icon: Icon, label, color, bg }, i) => (
+            <div key={i} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
+              <div
+                style={{
+                  width: 46,
+                  height: 46,
+                  borderRadius: "16px",
+                  background: bg,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                <Icon size={19} color={color} strokeWidth={1.7} />
+              </div>
+              <span style={{ fontSize: 10.5, color: TEXT_MUTED, fontWeight: 500 }}>{label}</span>
+            </div>
+          ))}
+        </div>
+
+        <div style={{ width: "100%", maxWidth: 300, animation: "wpFadeUp 0.5s ease 0.32s both" }}>
+          <PrimaryButton
+            onClick={onContinue}
+            style={{ width: "100%", padding: "15px 20px", fontSize: 15.5, boxShadow: `0 10px 24px ${ROSE}55` }}
           >
-            <Icon size={13} color={ROSE_DARK} />
-            {label}
-          </div>
-        ))}
+            Continuer <ChevronRight size={17} />
+          </PrimaryButton>
+        </div>
       </div>
-
-      <PrimaryButton onClick={onContinue} style={{ padding: "14px 40px", fontSize: 15, boxShadow: "0 8px 20px rgba(140,90,100,0.28)" }}>
-        Continuer
-      </PrimaryButton>
     </div>
   );
 }
@@ -2154,15 +2366,27 @@ function Hub() {
         style={{
           height: "100svh",
           display: "flex",
+          flexDirection: "column",
+          gap: 14,
           alignItems: "center",
           justifyContent: "center",
           background: CREAM,
-          fontFamily: "system-ui, sans-serif",
-          color: TEXT_MUTED,
-          fontSize: 14,
+          fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
         }}
       >
-        Chargement...
+        <GlobalStyle />
+        <style>{`@keyframes spin360 { to { transform: rotate(360deg); } }`}</style>
+        <div
+          style={{
+            width: 34,
+            height: 34,
+            borderRadius: "50%",
+            border: `3px solid ${ROSE_LIGHT}`,
+            borderTopColor: ROSE,
+            animation: "spin360 0.8s linear infinite",
+          }}
+        />
+        <span style={{ color: TEXT_MUTED, fontSize: 13 }}>Chargement...</span>
       </div>
     );
   }
@@ -2184,17 +2408,19 @@ function Hub() {
       <div
         onTouchStart={handleTouchStart}
         onTouchEnd={handleTouchEnd}
+        className="safeplace-scroll"
         style={{
           height: "100%",
           width: "100%",
-          overflowY: "auto",
+          overflowY: tab === "pills" ? "hidden" : "auto",
           overscrollBehaviorY: "contain",
           WebkitOverflowScrolling: "touch",
           paddingBottom: 66,
           boxSizing: "border-box",
-          touchAction: "pan-y",
+          touchAction: tab === "pills" ? "none" : "pan-y",
         }}
       >
+        <GlobalStyle />
         <style>{`
           @keyframes fadeSlideIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
         `}</style>
@@ -2224,6 +2450,19 @@ function Hub() {
           zIndex: 10,
         }}
       >
+        <div
+          style={{
+            position: "absolute",
+            top: 6,
+            left: `calc(${(TABS.findIndex((t) => t.key === tab) / TABS.length) * 100}% + 4px)`,
+            width: `calc(${100 / TABS.length}% - 8px)`,
+            height: 38,
+            borderRadius: 14,
+            background: ROSE_LIGHT,
+            transition: "left 0.3s cubic-bezier(0.4,0,0.2,1)",
+            zIndex: 0,
+          }}
+        />
         {TABS.map(({ key, label, icon: Icon }) => {
           const active = tab === key;
           return (
@@ -2243,36 +2482,22 @@ function Hub() {
                 borderRadius: 14,
                 flex: 1,
                 minWidth: 0,
+                position: "relative",
+                zIndex: 1,
               }}
             >
               <div
                 style={{
                   width: 32,
                   height: 32,
-                  borderRadius: "50%",
-                  background: active ? ROSE_LIGHT : "transparent",
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
-                  position: "relative",
-                  transition: "background 0.2s",
                 }}
               >
-                {active && (
-                  <span
-                    style={{
-                      position: "absolute",
-                      top: -7,
-                      width: 4,
-                      height: 4,
-                      borderRadius: "50%",
-                      background: ROSE_DARK,
-                    }}
-                  />
-                )}
-                <Icon size={17} strokeWidth={active ? 2 : 1.5} />
+                <Icon size={18} strokeWidth={active ? 2 : 1.5} />
               </div>
-              <span style={{ fontSize: 9.5, fontWeight: active ? 500 : 400, whiteSpace: "nowrap" }}>{label}</span>
+              <span style={{ fontSize: 9.5, fontWeight: active ? 600 : 400, whiteSpace: "nowrap" }}>{label}</span>
             </button>
           );
         })}
