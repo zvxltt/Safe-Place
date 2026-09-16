@@ -418,13 +418,38 @@ function useHubData() {
     setData(resolved);
     if (saveTimer.current) clearTimeout(saveTimer.current);
     saveTimer.current = setTimeout(async () => {
+      saveTimer.current = null;
       try {
         await window.storage.set("hub-data", JSON.stringify(resolved));
       } catch (e) {
         console.error("Erreur de sauvegarde", e);
       }
-    }, 250);
+    }, 120);
   };
+
+  // filet de sécurité : si l'app passe en arrière-plan, se ferme, ou change d'onglet pendant
+  // qu'une sauvegarde est encore en attente, on la force immédiatement pour ne rien perdre.
+  useEffect(() => {
+    const flushPendingSave = () => {
+      if (!saveTimer.current) return;
+      clearTimeout(saveTimer.current);
+      saveTimer.current = null;
+      try {
+        window.storage.set("hub-data", JSON.stringify(dataRef.current));
+      } catch (e) {}
+    };
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "hidden") flushPendingSave();
+    };
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    window.addEventListener("pagehide", flushPendingSave);
+    window.addEventListener("beforeunload", flushPendingSave);
+    return () => {
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+      window.removeEventListener("pagehide", flushPendingSave);
+      window.removeEventListener("beforeunload", flushPendingSave);
+    };
+  }, []);
 
   return { data, persist, loaded };
 }
