@@ -300,13 +300,11 @@ const EMPTY = {
   dailyNotes: {},
   favoriteFilms: [],
   wheelOptions: [],
-  seenThemeIntro: false,
   seenAgendaIntro: false,
   agendaEvents: [],
   evaScheduleVersion: null,
   barcaScheduleVersion: null,
   valentinScheduleVersion: null,
-  themeIntroVersion: null,
 };
 
 /* ---------- STORAGE HOOK ---------- */
@@ -330,7 +328,6 @@ function useHubData() {
       const BARCA_SCHEDULE_VERSION = "v1";
       const AGENDA_INTRO_VERSION = "v5";
       const VALENTIN_SCHEDULE_VERSION = "v2";
-      const THEME_INTRO_VERSION = "v2";
 
       if (!initial) {
         initial = {
@@ -347,7 +344,6 @@ function useHubData() {
           barcaScheduleVersion: BARCA_SCHEDULE_VERSION,
           agendaIntroVersion: AGENDA_INTRO_VERSION,
           valentinScheduleVersion: VALENTIN_SCHEDULE_VERSION,
-          themeIntroVersion: THEME_INTRO_VERSION,
         };
       } else {
         if (initial.pillCycleAnchor !== CORRECT_ANCHOR) {
@@ -401,14 +397,6 @@ function useHubData() {
             ...initial,
             seenAgendaIntro: false,
             agendaIntroVersion: AGENDA_INTRO_VERSION,
-          };
-        }
-        if (initial.themeIntroVersion !== THEME_INTRO_VERSION) {
-          // réaffiche (une seule fois) la bulle d'intro des thèmes depuis cette mise à jour
-          initial = {
-            ...initial,
-            seenThemeIntro: false,
-            themeIntroVersion: THEME_INTRO_VERSION,
           };
         }
       }
@@ -4668,94 +4656,6 @@ const TABS = [
 ];
 
 /* ================= ADMIN THÈME (TEMPORAIRE — À RETIRER) ================= */
-function ThemeIntroCallout({ onDismiss }) {
-  const [dragX, setDragX] = useState(0);
-  const draggingRef = useRef(false);
-  const startXRef = useRef(0);
-
-  const handleStart = (clientX) => {
-    draggingRef.current = true;
-    startXRef.current = clientX - dragX;
-  };
-  const handleMove = (clientX) => {
-    if (!draggingRef.current) return;
-    setDragX(clientX - startXRef.current);
-  };
-  const handleEnd = () => {
-    draggingRef.current = false;
-  };
-
-  const onTouchStart = (e) => handleStart(e.touches[0].clientX);
-  const onTouchMove = (e) => handleMove(e.touches[0].clientX);
-
-  const onMouseDown = (e) => {
-    handleStart(e.clientX);
-    const onMove = (ev) => handleMove(ev.clientX);
-    const onUp = () => {
-      handleEnd();
-      window.removeEventListener("mousemove", onMove);
-      window.removeEventListener("mouseup", onUp);
-    };
-    window.addEventListener("mousemove", onMove);
-    window.addEventListener("mouseup", onUp);
-  };
-
-  return (
-    <div
-      onClick={(e) => {
-        if (e.target === e.currentTarget) onDismiss();
-      }}
-      style={{
-        position: "fixed",
-        inset: 0,
-        background: "rgba(40,30,32,0.32)",
-        zIndex: 60,
-      }}
-    >
-      <style>{`@keyframes introPop { from { opacity: 0; transform: translateY(-6px) scale(0.96); } to { opacity: 1; transform: translateY(0) scale(1); } }`}</style>
-      <div
-        onClick={(e) => e.stopPropagation()}
-        onTouchStart={onTouchStart}
-        onTouchMove={onTouchMove}
-        onTouchEnd={handleEnd}
-        onMouseDown={onMouseDown}
-        style={{
-          position: "absolute",
-          top: "calc(clamp(20px,6vw,28px) + 40px)",
-          right: "max(16px, calc(50% - 224px))",
-          width: 236,
-          transform: `translateX(${dragX}px)`,
-          animation: dragX === 0 ? "introPop 0.25s ease" : "none",
-          touchAction: "none",
-          cursor: "grab",
-          userSelect: "none",
-        }}
-      >
-        <div
-          style={{
-            position: "absolute",
-            top: -7,
-            right: 50,
-            width: 0,
-            height: 0,
-            borderLeft: "8px solid transparent",
-            borderRight: "8px solid transparent",
-            borderBottom: "8px solid #fff",
-          }}
-        />
-        <div style={{ background: "#fff", borderRadius: 16, padding: "14px 16px", boxShadow: "0 12px 30px rgba(0,0,0,0.22)" }}>
-          <div style={{ fontSize: 13, color: TEXT, lineHeight: 1.5, marginBottom: 12 }}>
-            <strong>✨ Nouveau :</strong> l'app change d'ambiance selon le mois ! Touche <strong>🎨</strong> en haut pour choisir entre le thème de base et celui du mois en cours.
-          </div>
-          <PrimaryButton onClick={onDismiss} style={{ width: "100%", justifyContent: "center", padding: "9px 14px", fontSize: 13 }}>
-            Compris !
-          </PrimaryButton>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 function AgendaIntroCallout({ onDismiss }) {
   const [dragX, setDragX] = useState(0);
   const draggingRef = useRef(false);
@@ -4953,12 +4853,8 @@ function Hub() {
       }}
     >
       <FallingEmojis monthNum={themeMonth} />
-      {!data.seenThemeIntro ? (
-        <ThemeIntroCallout onDismiss={() => persist({ ...data, seenThemeIntro: true })} />
-      ) : (
-        !data.seenAgendaIntro && (
-          <AgendaIntroCallout onDismiss={() => persist({ ...data, seenAgendaIntro: true })} />
-        )
+      {!data.seenAgendaIntro && (
+        <AgendaIntroCallout onDismiss={() => persist({ ...data, seenAgendaIntro: true })} />
       )}
       <div
         className="safeplace-scroll"
