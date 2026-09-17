@@ -170,6 +170,16 @@ const dateFromKey = (key) => {
   return new Date(y, m - 1, d);
 };
 const uid = () => Math.random().toString(36).slice(2, 10);
+const addDaysToKey = (key, n) => {
+  const d = dateFromKey(key);
+  d.setDate(d.getDate() + n);
+  return dateKey(d);
+};
+// nombre de jours (inclusif) entre deux clés de date "YYYY-MM-DD"
+const daysBetweenKeys = (startKey, endKey) => {
+  const ms = dateFromKey(endKey) - dateFromKey(startKey);
+  return Math.round(ms / 86400000) + 1;
+};
 
 // Emploi du temps par défaut d'Eva (école + équitation), généré comme de vrais événements
 // modifiables/supprimables normalement — pas un système récurrent séparé.
@@ -2215,6 +2225,7 @@ function findNearestFreeStart(desiredStartMin, durationMin, occupiedIntervals) {
 
 function AgendaEventRow({ ev, onEdit }) {
   const isShared = ev.who === "both";
+  const isMultiDay = ev.endDate && ev.endDate !== ev.date;
   const color = isShared ? ROSE_DARK : ev.who === "valentin" ? AGENDA_VALENTIN_COLOR : ROSE_DARK;
   const barBg = isShared
     ? `linear-gradient(to bottom, ${AGENDA_VALENTIN_COLOR}, ${ROSE_DARK})`
@@ -2250,9 +2261,20 @@ function AgendaEventRow({ ev, onEdit }) {
               background: tagBg,
               borderRadius: 999,
               padding: "2px 7px",
+              display: "flex",
+              alignItems: "center",
+              gap: 3,
             }}
           >
-            {ev.start}–{ev.end}
+            {isMultiDay ? (
+              <>
+                🌙 {dateFromKey(ev.date).toLocaleDateString("fr-FR", { day: "numeric", month: "short" })}
+                {" → "}
+                {dateFromKey(ev.endDate).toLocaleDateString("fr-FR", { day: "numeric", month: "short" })}
+              </>
+            ) : (
+              `${ev.start}–${ev.end}`
+            )}
           </span>
           {isShared && (
             <span
@@ -2444,6 +2466,10 @@ function AgendaEventModal({ initialDate, events, editingEvent, onClose, onSubmit
   const [title, setTitle] = useState(editingEvent ? editingEvent.title : "");
   const [description, setDescription] = useState(editingEvent ? editingEvent.description || "" : "");
   const [who, setWho] = useState(editingEvent ? editingEvent.who : "both");
+  const [multiDay, setMultiDay] = useState(editingEvent ? !!editingEvent.endDate : false);
+  const [nights, setNights] = useState(
+    editingEvent && editingEvent.endDate ? Math.max(1, daysBetweenKeys(editingEvent.date, editingEvent.endDate) - 1) : 1
+  );
 
   const today = todayKey();
   const base = new Date();
@@ -2461,9 +2487,10 @@ function AgendaEventModal({ initialDate, events, editingEvent, onClose, onSubmit
   const monthLabel = base.toLocaleDateString("fr-FR", { month: "long", year: "numeric" });
 
   const AGENDA_PEOPLE = { valentin: ["valentin"], eva: ["eva"], both: ["valentin", "eva"] };
-  const validRange = timeToMinutes(endTime) > timeToMinutes(startTime);
+  const validRange = multiDay || timeToMinutes(endTime) > timeToMinutes(startTime);
   const newPeople = AGENDA_PEOPLE[who];
   const conflict =
+    !multiDay &&
     validRange &&
     (events || []).find((e) => {
       if (editingEvent && e.id === editingEvent.id) return false;
@@ -2476,7 +2503,7 @@ function AgendaEventModal({ initialDate, events, editingEvent, onClose, onSubmit
   // dès qu'un chevauchement est détecté, repositionne automatiquement sur le créneau
   // libre le plus proche (de même durée) au lieu d'afficher une erreur bloquante.
   useEffect(() => {
-    if (!validRange || !conflict) return;
+    if (multiDay || !validRange || !conflict) return;
     const durationMin = timeToMinutes(endTime) - timeToMinutes(startTime);
     const occupied = (events || [])
       .filter((e) => {
@@ -2501,8 +2528,9 @@ function AgendaEventModal({ initialDate, events, editingEvent, onClose, onSubmit
     onSubmit({
       ...(editingEvent ? { id: editingEvent.id } : {}),
       date: pickDate,
-      start: startTime,
-      end: endTime,
+      endDate: multiDay ? addDaysToKey(pickDate, nights) : undefined,
+      start: multiDay ? "00:00" : startTime,
+      end: multiDay ? "23:59" : endTime,
       title: title.trim(),
       description: description.trim(),
       who,
@@ -2642,38 +2670,128 @@ function AgendaEventModal({ initialDate, events, editingEvent, onClose, onSubmit
           </Card>
 
           <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 6, minWidth: 0 }}>
-            <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-              <input
-                type="time"
-                value={startTime}
-                onChange={(e) => setStartTime(e.target.value)}
-                onFocus={(e) => setTimeout(() => e.target.scrollIntoView({ block: "center", behavior: "smooth" }), 300)}
-                className="safeplace-input"
-                style={{ border: `1px solid ${BORDER}`, borderRadius: 12, padding: "8px 6px", fontSize: 12.5, background: "#fff", color: TEXT, width: "100%", minWidth: 0 }}
-              />
-            </div>
-            <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-              <input
-                type="time"
-                value={endTime}
-                onChange={(e) => setEndTime(e.target.value)}
-                onFocus={(e) => setTimeout(() => e.target.scrollIntoView({ block: "center", behavior: "smooth" }), 300)}
-                className="safeplace-input"
-                style={{ border: `1px solid ${BORDER}`, borderRadius: 12, padding: "8px 6px", fontSize: 12.5, background: "#fff", color: TEXT, width: "100%", minWidth: 0 }}
-              />
-            </div>
-            {validRange && (
-              <div style={{ fontSize: 10.5, color: TEXT_MUTED }}>
-                Durée : {(() => {
-                  const mins = timeToMinutes(endTime) - timeToMinutes(startTime);
-                  const h = Math.floor(mins / 60);
-                  const m = mins % 60;
-                  return h > 0 ? `${h}h${m > 0 ? String(m).padStart(2, "0") : ""}` : `${m} min`;
-                })()}
+            {!multiDay ? (
+              <>
+                <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                  <input
+                    type="time"
+                    value={startTime}
+                    onChange={(e) => setStartTime(e.target.value)}
+                    onFocus={(e) => setTimeout(() => e.target.scrollIntoView({ block: "center", behavior: "smooth" }), 300)}
+                    className="safeplace-input"
+                    style={{ border: `1px solid ${BORDER}`, borderRadius: 12, padding: "8px 6px", fontSize: 12.5, background: "#fff", color: TEXT, width: "100%", minWidth: 0 }}
+                  />
+                </div>
+                <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                  <input
+                    type="time"
+                    value={endTime}
+                    onChange={(e) => setEndTime(e.target.value)}
+                    onFocus={(e) => setTimeout(() => e.target.scrollIntoView({ block: "center", behavior: "smooth" }), 300)}
+                    className="safeplace-input"
+                    style={{ border: `1px solid ${BORDER}`, borderRadius: 12, padding: "8px 6px", fontSize: 12.5, background: "#fff", color: TEXT, width: "100%", minWidth: 0 }}
+                  />
+                </div>
+                {validRange && (
+                  <div style={{ fontSize: 10.5, color: TEXT_MUTED }}>
+                    Durée : {(() => {
+                      const mins = timeToMinutes(endTime) - timeToMinutes(startTime);
+                      const h = Math.floor(mins / 60);
+                      const m = mins % 60;
+                      return h > 0 ? `${h}h${m > 0 ? String(m).padStart(2, "0") : ""}` : `${m} min`;
+                    })()}
+                  </div>
+                )}
+              </>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: 6, height: "100%", justifyContent: "center" }}>
+                <span style={{ fontSize: 10.5, color: TEXT_MUTED }}>Nombre de nuits</span>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <button
+                    onClick={() => setNights((n) => Math.max(1, n - 1))}
+                    style={{
+                      width: 30,
+                      height: 30,
+                      flexShrink: 0,
+                      borderRadius: 9,
+                      border: `1px solid ${BORDER}`,
+                      background: "#fff",
+                      color: TEXT,
+                      fontSize: 16,
+                      cursor: "pointer",
+                    }}
+                  >
+                    −
+                  </button>
+                  <span style={{ fontSize: 14, fontWeight: 700, color: TEXT, minWidth: 18, textAlign: "center" }}>{nights}</span>
+                  <button
+                    onClick={() => setNights((n) => Math.min(60, n + 1))}
+                    style={{
+                      width: 30,
+                      height: 30,
+                      flexShrink: 0,
+                      borderRadius: 9,
+                      border: `1px solid ${BORDER}`,
+                      background: "#fff",
+                      color: TEXT,
+                      fontSize: 16,
+                      cursor: "pointer",
+                    }}
+                  >
+                    +
+                  </button>
+                </div>
+                <span style={{ fontSize: 10, color: TEXT_MUTED }}>
+                  Du {dateFromKey(pickDate).toLocaleDateString("fr-FR", { day: "numeric", month: "short" })} au{" "}
+                  {dateFromKey(addDaysToKey(pickDate, nights)).toLocaleDateString("fr-FR", { day: "numeric", month: "short" })}
+                </span>
               </div>
             )}
           </div>
         </div>
+
+        <button
+          onClick={() => setMultiDay((m) => !m)}
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 7,
+            border: "none",
+            background: "transparent",
+            color: multiDay ? ROSE_DARK : TEXT_MUTED,
+            fontSize: 12,
+            fontWeight: 600,
+            cursor: "pointer",
+            padding: "0 0 10px",
+          }}
+        >
+          <span
+            style={{
+              width: 30,
+              height: 17,
+              borderRadius: 999,
+              background: multiDay ? ROSE : BORDER,
+              position: "relative",
+              transition: "background 0.15s ease",
+              flexShrink: 0,
+            }}
+          >
+            <span
+              style={{
+                position: "absolute",
+                top: 2,
+                left: multiDay ? 15 : 2,
+                width: 13,
+                height: 13,
+                borderRadius: "50%",
+                background: "#fff",
+                transition: "left 0.15s ease",
+                boxShadow: "0 1px 2px rgba(0,0,0,0.2)",
+              }}
+            />
+          </span>
+          🌙 Plusieurs jours / nuit chez quelqu'un
+        </button>
 
         <TextField
           placeholder="Cours, rendez-vous..."
@@ -2833,7 +2951,7 @@ function AgendaScreen({ data, persist, themeMonth, setThemeMonth }) {
     });
   };
 
-  const dayEvents = events.filter((e) => e.date === selectedDate);
+  const dayEvents = events.filter((e) => e.date <= selectedDate && (e.endDate || e.date) >= selectedDate);
   const valentinEvents = dayEvents.filter((e) => e.who === "valentin" || e.who === "both");
   const evaEvents = dayEvents.filter((e) => e.who === "eva" || e.who === "both");
 
